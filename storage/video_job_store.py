@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Iterable
 
-from schemas import VideoJob
+from schemas import VideoJob, VideoJobStatus
 
 
 class VideoJobStore:
@@ -29,6 +30,29 @@ class VideoJobStore:
             VideoJob.from_json(path.read_text(encoding="utf-8"))
             for path in sorted(self.base_dir.glob("*.json"))
         ]
+
+    def list_recent_jobs(
+        self,
+        *,
+        limit: int | None = None,
+        exclude_job_id: str | None = None,
+        statuses: Iterable[VideoJobStatus | str] | None = None,
+    ) -> list[VideoJob]:
+        jobs = self.list_jobs()
+        if exclude_job_id:
+            jobs = [job for job in jobs if job.job_id != exclude_job_id]
+
+        if statuses is not None:
+            allowed_statuses = {
+                VideoJobStatus(status).value
+                for status in statuses
+            }
+            jobs = [job for job in jobs if job.status.value in allowed_statuses]
+
+        jobs.sort(key=lambda job: job.updated_at, reverse=True)
+        if limit is not None:
+            return jobs[:limit]
+        return jobs
 
     def _job_path(self, job_id: str) -> Path:
         return self.base_dir / f"{job_id}.json"

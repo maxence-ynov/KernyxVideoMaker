@@ -1,0 +1,268 @@
+[
+  {
+    "index": 1,
+    "topic": "Why viewers leave before your first point",
+    "niche": "scroll_retention",
+    "script_profile": "hooks",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "hooks",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:scroll_retention",
+      "locked": true,
+      "analyzed_candidates": [
+        "hooks",
+        "generic"
+      ],
+      "niche": "scroll_retention"
+    },
+    "script_proof_mode": "result",
+    "script_hook_family": "problem_first",
+    "script_cta_family": "soft:proof",
+    "script_body_structure": "lead_proof_close",
+    "visual_asset_mode": "screenshot",
+    "visual_theme": "midnight",
+    "visual_layout_variant": "browser_grid"
+  },
+  {
+    "index": 2,
+    "topic": "The first sentence is costing you watch time",
+    "niche": "scroll_retention",
+    "script_profile": "hooks",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "hooks",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:scroll_retention",
+      "locked": true,
+      "analyzed_candidates": [
+        "hooks",
+        "generic"
+      ],
+      "niche": "scroll_retention"
+    },
+    "script_proof_mode": "example",
+    "script_hook_family": "sell_second",
+    "script_cta_family": "comment:proof",
+    "script_body_structure": "lead_mid_proof",
+    "visual_asset_mode": "ui",
+    "visual_theme": "mint",
+    "visual_layout_variant": "queue_split"
+  },
+  {
+    "index": 3,
+    "topic": "A clean intro can still fail fast",
+    "niche": "scroll_retention",
+    "script_profile": "hooks",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "hooks",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:scroll_retention",
+      "locked": true,
+      "analyzed_candidates": [
+        "automation",
+        "hooks",
+        "generic"
+      ],
+      "niche": "scroll_retention"
+    },
+    "script_proof_mode": "field_error",
+    "script_hook_family": "retention_break",
+    "script_cta_family": "subscribe:proof",
+    "script_body_structure": "proof_mid_close",
+    "visual_asset_mode": "dashboard",
+    "visual_theme": "signal",
+    "visual_layout_variant": "ops_grid"
+  },
+  {
+    "index": 4,
+    "topic": "Readable captions still hurting retention",
+    "niche": "caption_retention",
+    "script_profile": "subtitles",
+    "script_profile_source": "editorial_profile_map.topic_rules",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "subtitles",
+      "source": "editorial_profile_map.topic_rules",
+      "reason": "caption wording",
+      "locked": true,
+      "analyzed_candidates": [
+        "subtitles",
+        "hooks",
+        "generic"
+      ],
+      "niche": "caption_retention",
+      "matched_rule_index": 0
+    },
+    "script_proof_mode": "tool",
+    "script_hook_family": "style_vs_rhythm",
+    "script_cta_family": "soft:proof",
+    "script_body_structure": "lead_proof_close",
+    "visual_asset_mode": "workflow",
+    "visual_theme": "midnight",
+    "visual_layout_variant": "map_center"
+  },
+  {
+    "index": 5,
+    "topic": "Your text blocks are neat but too slow",
+    "niche": "caption_retention",
+    "script_profile": "subtitles",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "subtitles",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:caption_retention",
+      "locked": true,
+      "analyzed_candidates": [
+        "subtitles",
+        "generic"
+      ],
+      "niche": "caption_retention"
+    },
+    "script_proof_mode": "result",
+    "script_hook_family": "readability_check",
+    "script_cta_family": "comment:proof",
+    "script_body_structure": "lead_mid_proof",
+    "visual_asset_mode": "screenshot",
+    "visual_theme": "mint",
+    "visual_layout_variant": "browser_spotlight"
+  },
+  {
+    "index": 6,
+    "topic": "When every line lands one beat late",
+    "niche": "caption_retention",
+    "script_profile": "subtitles",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "subtitles",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:caption_retention",
+      "locked": true,
+      "analyzed_candidates": [
+        "subtitles",
+        "generic"
+      ],
+      "niche": "caption_retention"
+    },
+    "script_proof_mode": "example",
+    "script_hook_family": "retention_loss",
+    "script_cta_family": "subscribe:proof",
+    "script_body_structure": "proof_mid_close",
+    "visual_asset_mode": "ui",
+    "visual_theme": "signal",
+    "visual_layout_variant": "inspector_focus"
+  },
+  {
+    "index": 7,
+    "topic": "One note, three short videos",
+    "niche": "content_repurpose",
+    "script_profile": "repurpose",
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "repurpose",
+      "source": "editorial_profile_map.by_niche",
+      "reason": "niche:content_repurpose",
+      "locked": true,
+      "analyzed_candidates": [
+        "repurpose",
+        "generic"
+      ],
+      "niche": "content_repurpose"
+    },
+    "script_proof_mode": "field_error",
+    "script_hook_family": "multi_angle",
+    "script_cta_family": "soft:proof",
+    "script_body_structure": "lead_proof_close",
+    "visual_asset_mode": "dashboard",
+    "visual_theme": "midnight",
+    "visual_layout_variant": "chart_focus"
+  },
+  {
+    "index": 8,
+    "topic": "How to turn one angle into a mini series",
+    "niche": "content_repurpose",
+    "script_profile": "repurpose",
+    "script_profile_source": "editorial_profile_map.topic_rules",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "repurpose",
+      "source": "editorial_profile_map.topic_rules",
+      "reason": "repurpose wording",
+      "locked": true,
+      "analyzed_candidates": [
+        "repurpose",
+        "generic"
+      ],
+      "niche": "content_repurpose",
+      "matched_rule_index": 2
+    },
+    "script_proof_mode": "tool",
+    "script_hook_family": "idea_vs_promise",
+    "script_cta_family": "comment:proof",
+    "script_body_structure": "lead_mid_proof",
+    "visual_asset_mode": "workflow",
+    "visual_theme": "mint",
+    "visual_layout_variant": "proof_focus"
+  },
+  {
+    "index": 9,
+    "topic": "The workflow looks smart but still feels robotic",
+    "niche": "ai_pipeline",
+    "script_profile": "automation",
+    "script_profile_source": "editorial_profile_map.topic_rules",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "automation",
+      "source": "editorial_profile_map.topic_rules",
+      "reason": "ops wording",
+      "locked": true,
+      "analyzed_candidates": [
+        "automation",
+        "generic"
+      ],
+      "niche": "ai_pipeline",
+      "matched_rule_index": 1
+    },
+    "script_proof_mode": "result",
+    "script_hook_family": "automation_tone",
+    "script_cta_family": "subscribe:proof",
+    "script_body_structure": "proof_mid_close",
+    "visual_asset_mode": "screenshot",
+    "visual_theme": "signal",
+    "visual_layout_variant": "browser_grid"
+  },
+  {
+    "index": 10,
+    "topic": "Why your agent demo still sounds templated",
+    "niche": "ai_pipeline",
+    "script_profile": "automation",
+    "script_profile_source": "editorial_profile_map.topic_rules",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "label": "automation",
+      "source": "editorial_profile_map.topic_rules",
+      "reason": "ops wording",
+      "locked": true,
+      "analyzed_candidates": [
+        "automation",
+        "generic"
+      ],
+      "niche": "ai_pipeline",
+      "matched_rule_index": 1
+    },
+    "script_proof_mode": "example",
+    "script_hook_family": "generic_steps",
+    "script_cta_family": "soft:proof",
+    "script_body_structure": "lead_proof_close",
+    "visual_asset_mode": "ui",
+    "visual_theme": "midnight",
+    "visual_layout_variant": "queue_split"
+  }
+]

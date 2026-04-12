@@ -1,0 +1,117 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "vertical_reel_v1",
+    "metadata": {
+      "language": "fr",
+      "platform": "short_video",
+      "voice_profile": "fr-default",
+      "anti_repetition": {
+        "lock_script_profile": true,
+        "window_size": 6,
+        "exclusion_window_size": 2,
+        "allowed_variation_fields": [
+          "script_hook_family",
+          "script_proof_mode",
+          "script_cta_family",
+          "script_body_structure",
+          "visual_asset_mode",
+          "visual_theme",
+          "visual_layout_variant"
+        ]
+      },
+      "editorial_profile_map": {
+        "by_niche": {
+          "scroll_retention": "hooks",
+          "caption_retention": "subtitles",
+          "content_repurpose": "repurpose",
+          "ai_pipeline": "automation"
+        },
+        "topic_rules": [
+          {
+            "contains_any": ["subtitle", "subtitles", "caption", "captions"],
+            "profile": "subtitles",
+            "reason": "caption wording"
+          },
+          {
+            "contains_any": ["workflow", "automation", "pipeline", "agent"],
+            "profile": "automation",
+            "reason": "ops wording"
+          },
+          {
+            "contains_any": ["idea", "ideas", "repurpose", "series"],
+            "profile": "repurpose",
+            "reason": "repurpose wording"
+          },
+          {
+            "contains_any": ["hook", "hooks", "scroll", "retention", "opening"],
+            "profile": "hooks",
+            "reason": "hook wording"
+          }
+        ]
+      }
+    }
+  },
+  "topics": [
+    {
+      "topic": "Why viewers leave before your first point",
+      "metadata": {
+        "niche": "scroll_retention"
+      }
+    },
+    {
+      "topic": "The first sentence is costing you watch time",
+      "metadata": {
+        "niche": "scroll_retention"
+      }
+    },
+    {
+      "topic": "A clean intro can still fail fast",
+      "metadata": {
+        "niche": "scroll_retention"
+      }
+    },
+    {
+      "topic": "Readable captions still hurting retention",
+      "metadata": {
+        "niche": "caption_retention"
+      }
+    },
+    {
+      "topic": "Your text blocks are neat but too slow",
+      "metadata": {
+        "niche": "caption_retention"
+      }
+    },
+    {
+      "topic": "When every line lands one beat late",
+      "metadata": {
+        "niche": "caption_retention"
+      }
+    },
+    {
+      "topic": "One note, three short videos",
+      "metadata": {
+        "niche": "content_repurpose"
+      }
+    },
+    {
+      "topic": "How to turn one angle into a mini series",
+      "metadata": {
+        "niche": "content_repurpose"
+      }
+    },
+    {
+      "topic": "The workflow looks smart but still feels robotic",
+      "metadata": {
+        "niche": "ai_pipeline"
+      }
+    },
+    {
+      "topic": "Why your agent demo still sounds templated",
+      "metadata": {
+        "niche": "ai_pipeline"
+      }
+    }
+  ]
+}

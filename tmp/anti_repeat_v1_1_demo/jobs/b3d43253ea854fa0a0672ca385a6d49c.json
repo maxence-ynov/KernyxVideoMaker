@@ -1,0 +1,929 @@
+{
+  "account": "tiktok_main",
+  "created_at": "2026-04-12T16:54:13.510206+00:00",
+  "errors": [],
+  "file_paths": {
+    "script": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/b3d43253ea854fa0a0672ca385a6d49c/script.txt",
+    "source_media": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/b3d43253ea854fa0a0672ca385a6d49c/source_media.ppm"
+  },
+  "job_id": "b3d43253ea854fa0a0672ca385a6d49c",
+  "metadata": {
+    "anti_repetition": {
+      "allowed_variation_fields": [
+        "script_hook_family",
+        "script_proof_mode",
+        "script_cta_family",
+        "script_body_structure",
+        "visual_asset_mode",
+        "visual_theme",
+        "visual_layout_variant"
+      ],
+      "exclusion_window_size": 2,
+      "lock_script_profile": true,
+      "window_size": 6
+    },
+    "anti_repetition_script": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "body_structure": {
+          "enabled": true,
+          "field_name": "script_body_structure",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "lead_proof_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.186,
+              "signals": {
+                "script_body_structure": "lead_proof_close",
+                "script_signature": "subtitles|example|retention_loss|subscribe:proof|lead_proof_close"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "lead_mid_proof",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.648,
+              "signals": {
+                "script_body_structure": "lead_mid_proof",
+                "script_signature": "subtitles|example|retention_loss|subscribe:proof|lead_mid_proof"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "proof_mid_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.622,
+              "signals": {
+                "script_body_structure": "proof_mid_close",
+                "script_signature": "subtitles|example|retention_loss|subscribe:proof|proof_mid_close"
+              }
+            }
+          ],
+          "selected_key": "proof_mid_close",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "cta": {
+          "enabled": true,
+          "field_name": "script_cta",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": true,
+              "key": "soft:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ],
+                "script_cta_signature": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 1.933,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:0",
+                "script_cta_text": "si tu veux, je peux te sortir 3 autres exemples reels sur when every line lands one beat late."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": true,
+              "key": "soft:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ],
+                "script_cta_signature": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.527,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:1",
+                "script_cta_text": "je peux te proposer d'autres cas reels pour rendre when every line lands one beat late encore plus concret."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": true,
+              "key": "comment:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_signature": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_text": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 2.27,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:1",
+                "script_cta_text": "commente cas reel et je te renvoie d'autres exemples tres concrets."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": true,
+              "key": "comment:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_signature": [
+                  "1a9641277b2e4826ae39e03585531dcd"
+                ]
+              },
+              "score": 2.685,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:0",
+                "script_cta_text": "commente exemple et je te donne 3 cas reels supplementaires."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": false,
+              "key": "subscribe:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.674,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:0",
+                "script_cta_text": "abonne-toi, je te montre d'autres exemples reels comme celui-ci."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": false,
+              "key": "subscribe:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ],
+                "script_cta_signature": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.14,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:1",
+                "script_cta_text": "abonne-toi, je detaille les cas reels que j'utiliserais sur when every line lands one beat late."
+              }
+            }
+          ],
+          "selected_key": "subscribe:proof:0",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "hook": {
+          "enabled": true,
+          "field_name": "script_hook",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "retention_loss|case_visual",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "retention_loss",
+                "script_hook_signature": "retention_loss|case_visual",
+                "script_hook_text": "tes sous-titres peuvent etre propres et quand meme tuer la retention. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "retention_loss|case_moment",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "retention_loss",
+                "script_hook_signature": "retention_loss|case_moment",
+                "script_hook_text": "tes sous-titres peuvent etre propres et quand meme tuer la retention. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": true,
+              "key": "style_vs_rhythm|case_visual",
+              "matched_job_ids": {
+                "script_hook_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 1.152,
+              "signals": {
+                "script_hook_family": "style_vs_rhythm",
+                "script_hook_signature": "style_vs_rhythm|case_visual",
+                "script_hook_text": "le souci ne vient pas seulement du style. il vient du rythme. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": true,
+              "key": "style_vs_rhythm|case_moment",
+              "matched_job_ids": {
+                "script_hook_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 1.152,
+              "signals": {
+                "script_hook_family": "style_vs_rhythm",
+                "script_hook_signature": "style_vs_rhythm|case_moment",
+                "script_hook_text": "le souci ne vient pas seulement du style. il vient du rythme. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": true,
+              "key": "readability_check|case_visual",
+              "matched_job_ids": {
+                "script_hook_family": [
+                  "1a9641277b2e4826ae39e03585531dcd"
+                ]
+              },
+              "score": 1.6,
+              "signals": {
+                "script_hook_family": "readability_check",
+                "script_hook_signature": "readability_check|case_visual",
+                "script_hook_text": "sur tiktok, des sous-titres lisibles ne suffisent pas. il faut qu'ils respirent. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": true,
+              "key": "readability_check|case_moment",
+              "matched_job_ids": {
+                "script_hook_family": [
+                  "1a9641277b2e4826ae39e03585531dcd"
+                ]
+              },
+              "score": 1.6,
+              "signals": {
+                "script_hook_family": "readability_check",
+                "script_hook_signature": "readability_check|case_moment",
+                "script_hook_text": "sur tiktok, des sous-titres lisibles ne suffisent pas. il faut qu'ils respirent. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            }
+          ],
+          "selected_key": "retention_loss|case_visual",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "profile": {
+          "enabled": true,
+          "field_name": "script_profile",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "subtitles",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_profile": "subtitles"
+              }
+            }
+          ],
+          "selected_key": "subtitles",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "proof_mode": {
+          "enabled": true,
+          "field_name": "script_proof_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "field_error",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "script_proof_mode": "field_error"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "result",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.269,
+              "signals": {
+                "script_proof_mode": "result"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "example",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "script_proof_mode": "example"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "tool",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "script_proof_mode": "tool"
+              }
+            }
+          ],
+          "selected_key": "example",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "profile_lock": {
+        "analyzed_candidates": [
+          "subtitles",
+          "generic"
+        ],
+        "label": "subtitles",
+        "locked": true,
+        "niche": "caption_retention",
+        "reason": "niche:caption_retention",
+        "source": "editorial_profile_map.by_niche"
+      },
+      "window_job_ids": [
+        "1a9641277b2e4826ae39e03585531dcd",
+        "4f8b80f18ad646f58abb8c0f345e5cde",
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "anti_repetition_visual": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "layout": {
+          "enabled": true,
+          "field_name": "visual_layout_signature",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "queue_split",
+              "matched_job_ids": {
+                "visual_layout_signature": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.56,
+              "signals": {
+                "visual_layout_signature": "ui:queue_split",
+                "visual_signature": "ui|signal|queue_split"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "inspector_focus",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_layout_signature": "ui:inspector_focus",
+                "visual_signature": "ui|signal|inspector_focus"
+              }
+            }
+          ],
+          "selected_key": "inspector_focus",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "mode": {
+          "enabled": true,
+          "field_name": "visual_asset_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "screenshot",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.269,
+              "signals": {
+                "visual_asset_mode": "screenshot"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "ui",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "visual_asset_mode": "ui"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "dashboard",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "visual_asset_mode": "dashboard"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "workflow",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "visual_asset_mode": "workflow"
+              }
+            }
+          ],
+          "selected_key": "ui",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "theme": {
+          "enabled": true,
+          "field_name": "visual_theme",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "mint",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.961,
+              "signals": {
+                "visual_theme": "mint"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "signal",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.363,
+              "signals": {
+                "visual_theme": "signal"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "midnight",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.692,
+              "signals": {
+                "visual_theme": "midnight"
+              }
+            }
+          ],
+          "selected_key": "signal",
+          "window_job_ids": [
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "window_job_ids": [
+        "1a9641277b2e4826ae39e03585531dcd",
+        "4f8b80f18ad646f58abb8c0f345e5cde",
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "config_index": 5,
+    "config_path": "config/anti_repeat_v1_1_10_jobs.json",
+    "editorial_profile_map": {
+      "by_niche": {
+        "ai_pipeline": "automation",
+        "caption_retention": "subtitles",
+        "content_repurpose": "repurpose",
+        "scroll_retention": "hooks"
+      },
+      "topic_rules": [
+        {
+          "contains_any": [
+            "subtitle",
+            "subtitles",
+            "caption",
+            "captions"
+          ],
+          "profile": "subtitles",
+          "reason": "caption wording"
+        },
+        {
+          "contains_any": [
+            "workflow",
+            "automation",
+            "pipeline",
+            "agent"
+          ],
+          "profile": "automation",
+          "reason": "ops wording"
+        },
+        {
+          "contains_any": [
+            "idea",
+            "ideas",
+            "repurpose",
+            "series"
+          ],
+          "profile": "repurpose",
+          "reason": "repurpose wording"
+        },
+        {
+          "contains_any": [
+            "hook",
+            "hooks",
+            "scroll",
+            "retention",
+            "opening"
+          ],
+          "profile": "hooks",
+          "reason": "hook wording"
+        }
+      ]
+    },
+    "estimated_duration_seconds": 31,
+    "jobs_dir": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/jobs",
+    "language": "fr",
+    "niche": "caption_retention",
+    "platform": "short_video",
+    "script_backend": "local-template-v4-memory",
+    "script_body_structure": "proof_mid_close",
+    "script_cta_family": "subscribe:proof",
+    "script_cta_mode": "subscribe",
+    "script_cta_signature": "subscribe:proof:0",
+    "script_cta_text": "Abonne-toi, je te montre d'autres exemples reels comme celui-ci.",
+    "script_hook_family": "retention_loss",
+    "script_hook_signature": "retention_loss|case_visual",
+    "script_hook_text": "Tes sous-titres peuvent etre propres et quand meme tuer la retention. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.",
+    "script_keywords": [
+      "when",
+      "every",
+      "line",
+      "lands"
+    ],
+    "script_platform_label": "TikTok",
+    "script_point_count": 3,
+    "script_profile": "subtitles",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "analyzed_candidates": [
+        "subtitles",
+        "generic"
+      ],
+      "label": "subtitles",
+      "locked": true,
+      "niche": "caption_retention",
+      "reason": "niche:caption_retention",
+      "source": "editorial_profile_map.by_niche"
+    },
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_proof_detail": "sur un tuto monte dans CapCut, des lignes plus courtes rendent l'idee lisible sans revenir en arriere",
+    "script_proof_line": "Cas reel : sur un tuto monte dans CapCut, des lignes plus courtes rendent l'idee lisible sans revenir en arriere.",
+    "script_proof_mode": "example",
+    "script_proof_tone": "narrative",
+    "script_sections": {
+      "cta": "Abonne-toi, je te montre d'autres exemples reels comme celui-ci.",
+      "hook": "Tes sous-titres peuvent etre propres et quand meme tuer la retention. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.",
+      "points": [
+        "Cas reel : sur un tuto monte dans CapCut, des lignes plus courtes rendent l'idee lisible sans revenir en arriere.",
+        "Une phrase = une idee, avec un mot fort qui ressort tout de suite a l'ecran.",
+        "Coupe plus court, change de bloc plus souvent et retire tout ce qui n'apporte pas d'image mentale."
+      ]
+    },
+    "script_signature": "subtitles|example|retention_loss|subscribe:proof|proof_mid_close",
+    "script_text": "Tes sous-titres peuvent etre propres et quand meme tuer la retention. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.\n\nCas reel : sur un tuto monte dans CapCut, des lignes plus courtes rendent l'idee lisible sans revenir en arriere.\n\nUne phrase = une idee, avec un mot fort qui ressort tout de suite a l'ecran.\n\nCoupe plus court, change de bloc plus souvent et retire tout ce qui n'apporte pas d'image mentale.\n\nAbonne-toi, je te montre d'autres exemples reels comme celui-ci.",
+    "script_word_count": 86,
+    "visual_asset_mode": "ui",
+    "visual_asset_spec": {
+      "chips": [
+        "UI",
+        "EXAMPLE",
+        "CAPCUT",
+        "WHEN"
+      ],
+      "eyebrow": "OPERATOR UI CASE",
+      "footer_text": "OPERATE TRIAGE DECIDE",
+      "highlight_lines": [
+        "SUR UN TUTO MONTE",
+        "DANS CAPCUT DES",
+        "LIGNES PLUS"
+      ],
+      "layout_variant": "inspector_focus",
+      "metrics": [
+        {
+          "label": "CASE",
+          "status": "REAL",
+          "value": "1"
+        },
+        {
+          "label": "QUEUE",
+          "status": "OPEN",
+          "value": "27"
+        },
+        {
+          "label": "SLA",
+          "status": "FAST",
+          "value": "96"
+        }
+      ],
+      "mode": "ui",
+      "product_name": "AGENT CONSOLE",
+      "profile": "subtitles",
+      "proof_mode": "example",
+      "table_rows": [
+        {
+          "detail": "BLOCKS",
+          "label": "CAPTION",
+          "state": "LIVE"
+        },
+        {
+          "detail": "READ",
+          "label": "PACE",
+          "state": "CHECK"
+        },
+        {
+          "detail": "WORDS",
+          "label": "HIGHLIGHT",
+          "state": "READY"
+        },
+        {
+          "detail": "SRT",
+          "label": "EXPORT",
+          "state": "DONE"
+        }
+      ],
+      "theme": "signal",
+      "title_lines": [
+        "SUBTITLE",
+        "FLOW CHECK"
+      ],
+      "tool_label": "CAPCUT",
+      "workflow_nodes": [
+        {
+          "state": "LIVE",
+          "subtitle": "LOAD",
+          "title": "SCRIPT"
+        },
+        {
+          "state": "READY",
+          "subtitle": "CUT",
+          "title": "CAPTION"
+        },
+        {
+          "state": "RUN",
+          "subtitle": "WORDS",
+          "title": "EMPHASIS"
+        },
+        {
+          "state": "CHECK",
+          "subtitle": "FLOW",
+          "title": "REVIEW"
+        },
+        {
+          "state": "DONE",
+          "subtitle": "SRT",
+          "title": "EXPORT"
+        }
+      ]
+    },
+    "visual_generation_mode": "generated_ui",
+    "visual_layout": {
+      "chips": [
+        "UI",
+        "EXAMPLE",
+        "CAPCUT",
+        "WHEN"
+      ],
+      "eyebrow": "OPERATOR UI CASE",
+      "footer_text": "OPERATE TRIAGE DECIDE",
+      "product_name": "AGENT CONSOLE",
+      "signature": "ui:inspector_focus",
+      "title_lines": [
+        "SUBTITLE",
+        "FLOW CHECK"
+      ],
+      "variant": "inspector_focus"
+    },
+    "visual_layout_signature": "ui:inspector_focus",
+    "visual_layout_variant": "inspector_focus",
+    "visual_signature": "ui|signal|inspector_focus",
+    "visual_source_format": "ppm",
+    "visual_source_resolution": "720x1280",
+    "visual_theme": "signal",
+    "voice_profile": "fr-default"
+  },
+  "status": "completed",
+  "template": "vertical_reel_v1",
+  "topic": "When every line lands one beat late",
+  "updated_at": "2026-04-12T16:54:34.521342+00:00"
+}

@@ -1,0 +1,9 @@
+Ton hook ne doit pas presenter le sujet. Il doit vendre la deuxieme seconde. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.
+
+La premiere ligne doit promettre un resultat, pas annoncer un theme.
+
+Un hook credible donne un angle precis : conflit, delai ou benefice concret.
+
+Exemple reel : un createur garde le meme sujet, change juste l'ouverture et recupere 2 secondes de retention gagnees sur l'ouverture.
+
+Commente cas reel et je te renvoie d'autres exemples tres concrets.

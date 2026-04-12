@@ -1,0 +1,39 @@
+{
+  "account": "tiktok_main",
+  "created_at": "2026-04-12T13:50:56.723875+00:00",
+  "errors": [
+    "no supported TTS engine found in PATH; install 'espeak-ng' or 'espeak'"
+  ],
+  "file_paths": {
+    "script": "tmp/artifacts_audit/16efdb19377d48de97521a5dc43cc3d9/script.txt"
+  },
+  "job_id": "16efdb19377d48de97521a5dc43cc3d9",
+  "metadata": {
+    "angle": "education",
+    "artifact_dir": "tmp/artifacts_audit/16efdb19377d48de97521a5dc43cc3d9",
+    "config_index": 1,
+    "config_path": "config/topics.json",
+    "estimated_duration_seconds": 25,
+    "language": "fr",
+    "platform": "short_video",
+    "priority": "high",
+    "script_backend": "local-template-v1",
+    "script_point_count": 3,
+    "script_sections": {
+      "cta": "Teste ca aujourd'hui, puis passe a l'action.",
+      "hook": "How to turn one idea into 5 short videos : voici l'essentiel.",
+      "points": [
+        "D'abord, clarifie le point central : sur how to turn one idea into 5 short videos, sans message simple, rien n'accroche.",
+        "Ensuite, montre un seul levier concret ou l'erreur qui coute le plus cher.",
+        "Enfin, termine par une action simple a tester aujourd'hui."
+      ]
+    },
+    "script_text": "How to turn one idea into 5 short videos : voici l'essentiel.\n\nD'abord, clarifie le point central : sur how to turn one idea into 5 short videos, sans message simple, rien n'accroche.\nEnsuite, montre un seul levier concret ou l'erreur qui coute le plus cher.\nEnfin, termine par une action simple a tester aujourd'hui.\n\nTeste ca aujourd'hui, puis passe a l'action.",
+    "script_word_count": 60,
+    "voice_profile": "fr-default"
+  },
+  "status": "failed",
+  "template": "vertical_reel_v1",
+  "topic": "How to turn one idea into 5 short videos",
+  "updated_at": "2026-04-12T13:50:56.737582+00:00"
+}

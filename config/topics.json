@@ -1,0 +1,38 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "vertical_reel_v1",
+    "metadata": {
+      "language": "fr",
+      "platform": "short_video",
+      "voice_profile": "fr-default",
+      "script_proof_mode": "auto"
+    }
+  },
+  "topics": [
+    {
+      "topic": "3 hooks to stop the scroll in under 2 seconds",
+      "metadata": {
+        "script_proof_mode": "result",
+        "script_proof_result": "2 secondes de retention gagnees sur la premiere phrase"
+      }
+    },
+    {
+      "topic": "How to turn one idea into 5 short videos",
+      "metadata": {
+        "angle": "education",
+        "priority": "high",
+        "script_proof_mode": "example"
+      }
+    },
+    {
+      "topic": "Common subtitle mistakes that kill retention",
+      "template": "vertical_reel_educational",
+      "account": "instagram_reels",
+      "metadata": {
+        "angle": "tips",
+        "script_proof_mode": "field_error"
+      }
+    }
+  ]
+}

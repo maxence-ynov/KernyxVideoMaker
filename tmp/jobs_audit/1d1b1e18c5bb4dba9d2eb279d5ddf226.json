@@ -1,0 +1,38 @@
+{
+  "account": "instagram_reels",
+  "created_at": "2026-04-12T13:50:56.723888+00:00",
+  "errors": [
+    "no supported TTS engine found in PATH; install 'espeak-ng' or 'espeak'"
+  ],
+  "file_paths": {
+    "script": "tmp/artifacts_audit/1d1b1e18c5bb4dba9d2eb279d5ddf226/script.txt"
+  },
+  "job_id": "1d1b1e18c5bb4dba9d2eb279d5ddf226",
+  "metadata": {
+    "angle": "tips",
+    "artifact_dir": "tmp/artifacts_audit/1d1b1e18c5bb4dba9d2eb279d5ddf226",
+    "config_index": 2,
+    "config_path": "config/topics.json",
+    "estimated_duration_seconds": 25,
+    "language": "fr",
+    "platform": "short_video",
+    "script_backend": "local-template-v1",
+    "script_point_count": 3,
+    "script_sections": {
+      "cta": "Si tu veux d'autres scripts courts, abonne-toi.",
+      "hook": "Si tu veux comprendre Common subtitle mistakes that kill retention, retiens ça.",
+      "points": [
+        "Premier point : sur common subtitle mistakes that kill retention, commence par le coeur du sujet, pas par les details.",
+        "Ensuite, garde un angle fort et coupe tout le superflu.",
+        "Enfin, laisse un takeaway court que l'on retient tout de suite."
+      ]
+    },
+    "script_text": "Si tu veux comprendre Common subtitle mistakes that kill retention, retiens ça.\n\nPremier point : sur common subtitle mistakes that kill retention, commence par le coeur du sujet, pas par les details.\nEnsuite, garde un angle fort et coupe tout le superflu.\nEnfin, laisse un takeaway court que l'on retient tout de suite.\n\nSi tu veux d'autres scripts courts, abonne-toi.",
+    "script_word_count": 59,
+    "voice_profile": "fr-default"
+  },
+  "status": "failed",
+  "template": "vertical_reel_educational",
+  "topic": "Common subtitle mistakes that kill retention",
+  "updated_at": "2026-04-12T13:50:56.743066+00:00"
+}

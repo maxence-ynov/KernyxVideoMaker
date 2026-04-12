@@ -1,0 +1,864 @@
+{
+  "account": "tiktok_main",
+  "created_at": "2026-04-12T16:54:13.510181+00:00",
+  "errors": [],
+  "file_paths": {
+    "script": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/4f8b80f18ad646f58abb8c0f345e5cde/script.txt",
+    "source_media": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/4f8b80f18ad646f58abb8c0f345e5cde/source_media.ppm"
+  },
+  "job_id": "4f8b80f18ad646f58abb8c0f345e5cde",
+  "metadata": {
+    "anti_repetition": {
+      "allowed_variation_fields": [
+        "script_hook_family",
+        "script_proof_mode",
+        "script_cta_family",
+        "script_body_structure",
+        "visual_asset_mode",
+        "visual_theme",
+        "visual_layout_variant"
+      ],
+      "exclusion_window_size": 2,
+      "lock_script_profile": true,
+      "window_size": 6
+    },
+    "anti_repetition_script": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "body_structure": {
+          "enabled": true,
+          "field_name": "script_body_structure",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "lead_proof_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.622,
+              "signals": {
+                "script_body_structure": "lead_proof_close",
+                "script_signature": "subtitles|tool|style_vs_rhythm|soft:proof|lead_proof_close"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "lead_mid_proof",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.864,
+              "signals": {
+                "script_body_structure": "lead_mid_proof",
+                "script_signature": "subtitles|tool|style_vs_rhythm|soft:proof|lead_mid_proof"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "proof_mid_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.2,
+              "signals": {
+                "script_body_structure": "proof_mid_close",
+                "script_signature": "subtitles|tool|style_vs_rhythm|soft:proof|proof_mid_close"
+              }
+            }
+          ],
+          "selected_key": "lead_proof_close",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "cta": {
+          "enabled": true,
+          "field_name": "script_cta",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "soft:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ],
+                "script_cta_signature": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.14,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:1",
+                "script_cta_text": "je peux te sortir la version precise du workflow avec capcut."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "soft:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.674,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:0",
+                "script_cta_text": "si tu veux, je peux te donner le stack exact autour de capcut."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": true,
+              "key": "comment:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.936,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:0",
+                "script_cta_text": "commente outil et je te donne le stack complet."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": true,
+              "key": "comment:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_signature": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.584,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:1",
+                "script_cta_text": "commente stack et je te renvoie l'ordre exact des outils."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": true,
+              "key": "subscribe:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ],
+                "script_cta_signature": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 2.2,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:1",
+                "script_cta_text": "abonne-toi, je detaille le stack reel derriere ce type de script."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": true,
+              "key": "subscribe:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.3,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:0",
+                "script_cta_text": "abonne-toi, je te montre les outils exacts que j'utiliserais ici."
+              }
+            }
+          ],
+          "selected_key": "soft:proof:0",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "hook": {
+          "enabled": true,
+          "field_name": "script_hook",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "style_vs_rhythm|tool_specificity",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "style_vs_rhythm",
+                "script_hook_signature": "style_vs_rhythm|tool_specificity",
+                "script_hook_text": "le souci ne vient pas seulement du style. il vient du rythme. un seul outil cite au bon moment rend deja le script plus credible."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "style_vs_rhythm|name_the_tool",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "style_vs_rhythm",
+                "script_hook_signature": "style_vs_rhythm|name_the_tool",
+                "script_hook_text": "le souci ne vient pas seulement du style. il vient du rythme. le plus concret, c'est de nommer l'outil exact au lieu de rester abstrait."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "readability_check|tool_specificity",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "readability_check",
+                "script_hook_signature": "readability_check|tool_specificity",
+                "script_hook_text": "sur tiktok, des sous-titres lisibles ne suffisent pas. il faut qu'ils respirent. un seul outil cite au bon moment rend deja le script plus credible."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "readability_check|name_the_tool",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "readability_check",
+                "script_hook_signature": "readability_check|name_the_tool",
+                "script_hook_text": "sur tiktok, des sous-titres lisibles ne suffisent pas. il faut qu'ils respirent. le plus concret, c'est de nommer l'outil exact au lieu de rester abstrait."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": false,
+              "key": "retention_loss|tool_specificity",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "retention_loss",
+                "script_hook_signature": "retention_loss|tool_specificity",
+                "script_hook_text": "tes sous-titres peuvent etre propres et quand meme tuer la retention. un seul outil cite au bon moment rend deja le script plus credible."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": false,
+              "key": "retention_loss|name_the_tool",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "retention_loss",
+                "script_hook_signature": "retention_loss|name_the_tool",
+                "script_hook_text": "tes sous-titres peuvent etre propres et quand meme tuer la retention. le plus concret, c'est de nommer l'outil exact au lieu de rester abstrait."
+              }
+            }
+          ],
+          "selected_key": "style_vs_rhythm|tool_specificity",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "profile": {
+          "enabled": true,
+          "field_name": "script_profile",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "subtitles",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_profile": "subtitles"
+              }
+            }
+          ],
+          "selected_key": "subtitles",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "proof_mode": {
+          "enabled": true,
+          "field_name": "script_proof_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "field_error",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.0,
+              "signals": {
+                "script_proof_mode": "field_error"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "result",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "script_proof_mode": "result"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "example",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "script_proof_mode": "example"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "tool",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_proof_mode": "tool"
+              }
+            }
+          ],
+          "selected_key": "tool",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "profile_lock": {
+        "analyzed_candidates": [
+          "subtitles",
+          "hooks",
+          "generic"
+        ],
+        "label": "subtitles",
+        "locked": true,
+        "matched_rule_index": 0,
+        "niche": "caption_retention",
+        "reason": "caption wording",
+        "source": "editorial_profile_map.topic_rules"
+      },
+      "window_job_ids": [
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "anti_repetition_visual": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "layout": {
+          "enabled": true,
+          "field_name": "visual_layout_signature",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "map_center",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_layout_signature": "workflow:map_center",
+                "visual_signature": "workflow|midnight|map_center"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "proof_focus",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_layout_signature": "workflow:proof_focus",
+                "visual_signature": "workflow|midnight|proof_focus"
+              }
+            }
+          ],
+          "selected_key": "map_center",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "mode": {
+          "enabled": true,
+          "field_name": "visual_asset_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "screenshot",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "visual_asset_mode": "screenshot"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "ui",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "visual_asset_mode": "ui"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "dashboard",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.0,
+              "signals": {
+                "visual_asset_mode": "dashboard"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "workflow",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_asset_mode": "workflow"
+              }
+            }
+          ],
+          "selected_key": "workflow",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "theme": {
+          "enabled": true,
+          "field_name": "visual_theme",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "midnight",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.363,
+              "signals": {
+                "visual_theme": "midnight"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "signal",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.7,
+              "signals": {
+                "visual_theme": "signal"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "mint",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.504,
+              "signals": {
+                "visual_theme": "mint"
+              }
+            }
+          ],
+          "selected_key": "midnight",
+          "window_job_ids": [
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "window_job_ids": [
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "config_index": 3,
+    "config_path": "config/anti_repeat_v1_1_10_jobs.json",
+    "editorial_profile_map": {
+      "by_niche": {
+        "ai_pipeline": "automation",
+        "caption_retention": "subtitles",
+        "content_repurpose": "repurpose",
+        "scroll_retention": "hooks"
+      },
+      "topic_rules": [
+        {
+          "contains_any": [
+            "subtitle",
+            "subtitles",
+            "caption",
+            "captions"
+          ],
+          "profile": "subtitles",
+          "reason": "caption wording"
+        },
+        {
+          "contains_any": [
+            "workflow",
+            "automation",
+            "pipeline",
+            "agent"
+          ],
+          "profile": "automation",
+          "reason": "ops wording"
+        },
+        {
+          "contains_any": [
+            "idea",
+            "ideas",
+            "repurpose",
+            "series"
+          ],
+          "profile": "repurpose",
+          "reason": "repurpose wording"
+        },
+        {
+          "contains_any": [
+            "hook",
+            "hooks",
+            "scroll",
+            "retention",
+            "opening"
+          ],
+          "profile": "hooks",
+          "reason": "hook wording"
+        }
+      ]
+    },
+    "estimated_duration_seconds": 30,
+    "jobs_dir": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/jobs",
+    "language": "fr",
+    "niche": "caption_retention",
+    "platform": "short_video",
+    "script_backend": "local-template-v4-memory",
+    "script_body_structure": "lead_proof_close",
+    "script_cta_family": "soft:proof",
+    "script_cta_mode": "soft",
+    "script_cta_signature": "soft:proof:0",
+    "script_cta_text": "Si tu veux, je peux te donner le stack exact autour de CapCut.",
+    "script_hook_family": "style_vs_rhythm",
+    "script_hook_signature": "style_vs_rhythm|tool_specificity",
+    "script_hook_text": "Le souci ne vient pas seulement du style. Il vient du rythme. Un seul outil cite au bon moment rend deja le script plus credible.",
+    "script_keywords": [
+      "readable",
+      "captions",
+      "still",
+      "hurting"
+    ],
+    "script_platform_label": "TikTok",
+    "script_point_count": 3,
+    "script_profile": "subtitles",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "analyzed_candidates": [
+        "subtitles",
+        "hooks",
+        "generic"
+      ],
+      "label": "subtitles",
+      "locked": true,
+      "matched_rule_index": 0,
+      "niche": "caption_retention",
+      "reason": "caption wording",
+      "source": "editorial_profile_map.topic_rules"
+    },
+    "script_profile_source": "editorial_profile_map.topic_rules",
+    "script_proof_detail": "CapCut",
+    "script_proof_line": "Nomme CapCut dans la video et le niveau de concret monte tout de suite.",
+    "script_proof_mode": "tool",
+    "script_proof_tone": "operational",
+    "script_sections": {
+      "cta": "Si tu veux, je peux te donner le stack exact autour de CapCut.",
+      "hook": "Le souci ne vient pas seulement du style. Il vient du rythme. Un seul outil cite au bon moment rend deja le script plus credible.",
+      "points": [
+        "Si on doit finir la ligne pour comprendre l'idee, tu es deja trop lent.",
+        "Nomme CapCut dans la video et le niveau de concret monte tout de suite.",
+        "Coupe plus court, change de bloc plus souvent et retire tout ce qui n'apporte pas d'image mentale."
+      ]
+    },
+    "script_signature": "subtitles|tool|style_vs_rhythm|soft:proof|lead_proof_close",
+    "script_text": "Le souci ne vient pas seulement du style. Il vient du rythme. Un seul outil cite au bon moment rend deja le script plus credible.\n\nSi on doit finir la ligne pour comprendre l'idee, tu es deja trop lent.\n\nNomme CapCut dans la video et le niveau de concret monte tout de suite.\n\nCoupe plus court, change de bloc plus souvent et retire tout ce qui n'apporte pas d'image mentale.\n\nSi tu veux, je peux te donner le stack exact autour de CapCut.",
+    "script_word_count": 83,
+    "visual_asset_mode": "workflow",
+    "visual_asset_spec": {
+      "chips": [
+        "WORKFLOW",
+        "TOOL",
+        "CAPCUT",
+        "READABLE"
+      ],
+      "eyebrow": "WORKFLOW CANVAS STACK",
+      "footer_text": "SYSTEM STACK LIVE",
+      "highlight_lines": [
+        "CAPCUT"
+      ],
+      "layout_variant": "map_center",
+      "metrics": [
+        {
+          "label": "STACK",
+          "status": "CAPCUT",
+          "value": "5"
+        },
+        {
+          "label": "NODES",
+          "status": "MAP",
+          "value": "6"
+        },
+        {
+          "label": "PASS",
+          "status": "SAFE",
+          "value": "89"
+        }
+      ],
+      "mode": "workflow",
+      "product_name": "CAPCUT FLOW",
+      "profile": "subtitles",
+      "proof_mode": "tool",
+      "table_rows": [
+        {
+          "detail": "BLOCKS",
+          "label": "CAPTION",
+          "state": "LIVE"
+        },
+        {
+          "detail": "READ",
+          "label": "PACE",
+          "state": "CHECK"
+        },
+        {
+          "detail": "WORDS",
+          "label": "HIGHLIGHT",
+          "state": "READY"
+        },
+        {
+          "detail": "SRT",
+          "label": "EXPORT",
+          "state": "DONE"
+        }
+      ],
+      "theme": "midnight",
+      "title_lines": [
+        "SUBTITLE",
+        "FLOW CHECK"
+      ],
+      "tool_label": "CAPCUT",
+      "workflow_nodes": [
+        {
+          "state": "LIVE",
+          "subtitle": "LOAD",
+          "title": "SCRIPT"
+        },
+        {
+          "state": "READY",
+          "subtitle": "CUT",
+          "title": "CAPTION"
+        },
+        {
+          "state": "RUN",
+          "subtitle": "WORDS",
+          "title": "EMPHASIS"
+        },
+        {
+          "state": "CHECK",
+          "subtitle": "FLOW",
+          "title": "REVIEW"
+        },
+        {
+          "state": "DONE",
+          "subtitle": "SRT",
+          "title": "EXPORT"
+        }
+      ]
+    },
+    "visual_generation_mode": "generated_workflow",
+    "visual_layout": {
+      "chips": [
+        "WORKFLOW",
+        "TOOL",
+        "CAPCUT",
+        "READABLE"
+      ],
+      "eyebrow": "WORKFLOW CANVAS STACK",
+      "footer_text": "SYSTEM STACK LIVE",
+      "product_name": "CAPCUT FLOW",
+      "signature": "workflow:map_center",
+      "title_lines": [
+        "SUBTITLE",
+        "FLOW CHECK"
+      ],
+      "variant": "map_center"
+    },
+    "visual_layout_signature": "workflow:map_center",
+    "visual_layout_variant": "map_center",
+    "visual_signature": "workflow|midnight|map_center",
+    "visual_source_format": "ppm",
+    "visual_source_resolution": "720x1280",
+    "visual_theme": "midnight",
+    "voice_profile": "fr-default"
+  },
+  "status": "completed",
+  "template": "vertical_reel_v1",
+  "topic": "Readable captions still hurting retention",
+  "updated_at": "2026-04-12T16:54:27.551509+00:00"
+}

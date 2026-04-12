@@ -1,0 +1,799 @@
+{
+  "account": "tiktok_main",
+  "created_at": "2026-04-12T15:59:56.589484+00:00",
+  "errors": [],
+  "file_paths": {
+    "script": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_smoke/artifacts/db6d1f32e05d418d800aac8ceca98466/script.txt",
+    "source_media": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_smoke/artifacts/db6d1f32e05d418d800aac8ceca98466/source_media.ppm"
+  },
+  "job_id": "db6d1f32e05d418d800aac8ceca98466",
+  "metadata": {
+    "anti_repetition": {
+      "enabled": true,
+      "exclusion_window_size": 2,
+      "window_size": 4
+    },
+    "anti_repetition_script": {
+      "config": {
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "recency_decay": 0.72,
+        "window_size": 4
+      },
+      "decisions": {
+        "body_structure": {
+          "enabled": true,
+          "field_name": "script_body_structure",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "lead_proof_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 0.864,
+              "signals": {
+                "script_body_structure": "lead_proof_close",
+                "script_signature": "repurpose|example|angle_shift|subscribe:proof|lead_proof_close"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "lead_mid_proof",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "a61f592967b44b40937c54a7c8b32326",
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 1.648,
+              "signals": {
+                "script_body_structure": "lead_mid_proof",
+                "script_signature": "repurpose|example|angle_shift|subscribe:proof|lead_mid_proof"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "proof_mid_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 0.622,
+              "signals": {
+                "script_body_structure": "proof_mid_close",
+                "script_signature": "repurpose|example|angle_shift|subscribe:proof|proof_mid_close"
+              }
+            }
+          ],
+          "selected_key": "proof_mid_close",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "cta": {
+          "enabled": true,
+          "field_name": "script_cta",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": true,
+              "key": "soft:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 0.936,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:0",
+                "script_cta_text": "si tu veux, je peux te sortir 3 autres exemples reels sur how to turn one idea into 5 short videos."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": true,
+              "key": "soft:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ],
+                "script_cta_signature": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 1.584,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:1",
+                "script_cta_text": "je peux te proposer d'autres cas reels pour rendre how to turn one idea into 5 short videos encore plus concret."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": true,
+              "key": "comment:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "a61f592967b44b40937c54a7c8b32326",
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ],
+                "script_cta_signature": [
+                  "a61f592967b44b40937c54a7c8b32326"
+                ]
+              },
+              "score": 2.685,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:1",
+                "script_cta_text": "commente cas reel et je te renvoie d'autres exemples tres concrets."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": true,
+              "key": "comment:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "a61f592967b44b40937c54a7c8b32326",
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ],
+                "script_cta_signature": [
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ],
+                "script_cta_text": [
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 2.27,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:0",
+                "script_cta_text": "commente exemple et je te donne 3 cas reels supplementaires."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": false,
+              "key": "subscribe:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ],
+                "script_cta_signature": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 1.14,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:0",
+                "script_cta_text": "abonne-toi, je te montre d'autres exemples reels comme celui-ci."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": false,
+              "key": "subscribe:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 0.674,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:1",
+                "script_cta_text": "abonne-toi, je detaille les cas reels que j'utiliserais sur how to turn one idea into 5 short videos."
+              }
+            }
+          ],
+          "selected_key": "subscribe:proof:1",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "hook": {
+          "enabled": true,
+          "field_name": "script_hook",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "angle_shift|case_visual",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "angle_shift",
+                "script_hook_signature": "angle_shift|case_visual",
+                "script_hook_text": "le vrai levier n'est pas l'idee seule. c'est la variation d'angle. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "angle_shift|case_moment",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "angle_shift",
+                "script_hook_signature": "angle_shift|case_moment",
+                "script_hook_text": "le vrai levier n'est pas l'idee seule. c'est la variation d'angle. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "idea_vs_promise|case_visual",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "idea_vs_promise",
+                "script_hook_signature": "idea_vs_promise|case_visual",
+                "script_hook_text": "le plus gros manque, c'est souvent l'angle, pas l'idee. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "idea_vs_promise|case_moment",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "idea_vs_promise",
+                "script_hook_signature": "idea_vs_promise|case_moment",
+                "script_hook_text": "le plus gros manque, c'est souvent l'angle, pas l'idee. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": false,
+              "key": "multi_angle|case_visual",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "multi_angle",
+                "script_hook_signature": "multi_angle|case_visual",
+                "script_hook_text": "une idee ne donne pas une video. elle donne plusieurs angles si tu changes la promesse. la preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": false,
+              "key": "multi_angle|case_moment",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "multi_angle",
+                "script_hook_signature": "multi_angle|case_moment",
+                "script_hook_text": "une idee ne donne pas une video. elle donne plusieurs angles si tu changes la promesse. le plus credible, c'est le moment ou tu montres un exemple que l'on peut presque voir."
+              }
+            }
+          ],
+          "selected_key": "angle_shift|case_visual",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "profile": {
+          "enabled": true,
+          "field_name": "script_profile",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "repurpose",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_profile": "repurpose"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "generic",
+              "matched_job_ids": {
+                "script_profile": [
+                  "a61f592967b44b40937c54a7c8b32326",
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 1.099,
+              "signals": {
+                "script_profile": "generic"
+              }
+            }
+          ],
+          "selected_key": "repurpose",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "proof_mode": {
+          "enabled": true,
+          "field_name": "script_proof_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "result",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "a61f592967b44b40937c54a7c8b32326"
+                ]
+              },
+              "score": 1.0,
+              "signals": {
+                "script_proof_mode": "result"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "example",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "script_proof_mode": "example"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "tool",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "script_proof_mode": "tool"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "field_error",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "script_proof_mode": "field_error"
+              }
+            }
+          ],
+          "selected_key": "example",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        }
+      },
+      "window_job_ids": [
+        "a61f592967b44b40937c54a7c8b32326",
+        "f700785d2ad4475681799ce53ab39ba6",
+        "32a7068a68ae4bb6b3dbc5961af67ea2",
+        "28c8f3d0d1234ce6b6785f16834810df"
+      ]
+    },
+    "anti_repetition_visual": {
+      "config": {
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "recency_decay": 0.72,
+        "window_size": 4
+      },
+      "decisions": {
+        "layout": {
+          "enabled": true,
+          "field_name": "visual_layout_signature",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "ops_grid",
+              "matched_job_ids": {
+                "visual_layout_signature": [
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 0.56,
+              "signals": {
+                "visual_layout_signature": "dashboard:ops_grid",
+                "visual_signature": "dashboard|mint|ops_grid"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "chart_focus",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_layout_signature": "dashboard:chart_focus",
+                "visual_signature": "dashboard|mint|chart_focus"
+              }
+            }
+          ],
+          "selected_key": "chart_focus",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "mode": {
+          "enabled": true,
+          "field_name": "visual_asset_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "ui",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "visual_asset_mode": "ui"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "dashboard",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "visual_asset_mode": "dashboard"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "screenshot",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "a61f592967b44b40937c54a7c8b32326"
+                ]
+              },
+              "score": 1.0,
+              "signals": {
+                "visual_asset_mode": "screenshot"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "workflow",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 0.72,
+              "signals": {
+                "visual_asset_mode": "workflow"
+              }
+            }
+          ],
+          "selected_key": "dashboard",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        },
+        "theme": {
+          "enabled": true,
+          "field_name": "visual_theme",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "signal",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "a61f592967b44b40937c54a7c8b32326",
+                  "28c8f3d0d1234ce6b6785f16834810df"
+                ]
+              },
+              "score": 0.961,
+              "signals": {
+                "visual_theme": "signal"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "midnight",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "f700785d2ad4475681799ce53ab39ba6"
+                ]
+              },
+              "score": 0.504,
+              "signals": {
+                "visual_theme": "midnight"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "mint",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "32a7068a68ae4bb6b3dbc5961af67ea2"
+                ]
+              },
+              "score": 0.363,
+              "signals": {
+                "visual_theme": "mint"
+              }
+            }
+          ],
+          "selected_key": "mint",
+          "window_job_ids": [
+            "a61f592967b44b40937c54a7c8b32326",
+            "f700785d2ad4475681799ce53ab39ba6",
+            "32a7068a68ae4bb6b3dbc5961af67ea2",
+            "28c8f3d0d1234ce6b6785f16834810df"
+          ]
+        }
+      },
+      "window_job_ids": [
+        "a61f592967b44b40937c54a7c8b32326",
+        "f700785d2ad4475681799ce53ab39ba6",
+        "32a7068a68ae4bb6b3dbc5961af67ea2",
+        "28c8f3d0d1234ce6b6785f16834810df"
+      ]
+    },
+    "estimated_duration_seconds": 30,
+    "jobs_dir": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_smoke/jobs",
+    "platform": "short_video",
+    "script_backend": "local-template-v4-memory",
+    "script_body_structure": "proof_mid_close",
+    "script_cta_family": "subscribe:proof",
+    "script_cta_mode": "subscribe",
+    "script_cta_signature": "subscribe:proof:1",
+    "script_cta_text": "Abonne-toi, je detaille les cas reels que j'utiliserais sur how to turn one idea into 5 short videos.",
+    "script_hook_family": "angle_shift",
+    "script_hook_signature": "angle_shift|case_visual",
+    "script_hook_text": "Le vrai levier n'est pas l'idee seule. C'est la variation d'angle. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.",
+    "script_keywords": [
+      "turn",
+      "idea",
+      "short"
+    ],
+    "script_platform_label": "TikTok",
+    "script_point_count": 3,
+    "script_profile": "repurpose",
+    "script_proof_detail": "une note Notion devient une video erreur, une video methode et une video checklist",
+    "script_proof_line": "Cas reel : une note Notion devient une video erreur, une video methode et une video checklist.",
+    "script_proof_mode": "example",
+    "script_proof_tone": "narrative",
+    "script_sections": {
+      "cta": "Abonne-toi, je detaille les cas reels que j'utiliserais sur how to turn one idea into 5 short videos.",
+      "hook": "Le vrai levier n'est pas l'idee seule. C'est la variation d'angle. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.",
+      "points": [
+        "Cas reel : une note Notion devient une video erreur, une video methode et une video checklist.",
+        "Le sujet reste le meme, mais la tension editoriale change a chaque video.",
+        "Avant d'ecrire, liste 5 promesses distinctes puis tourne seulement les plus nettes."
+      ]
+    },
+    "script_signature": "repurpose|example|angle_shift|subscribe:proof|proof_mid_close",
+    "script_text": "Le vrai levier n'est pas l'idee seule. C'est la variation d'angle. La preuve la plus rapide, c'est un cas reel que l'on visualise tout de suite.\n\nCas reel : une note Notion devient une video erreur, une video methode et une video checklist.\n\nLe sujet reste le meme, mais la tension editoriale change a chaque video.\n\nAvant d'ecrire, liste 5 promesses distinctes puis tourne seulement les plus nettes.\n\nAbonne-toi, je detaille les cas reels que j'utiliserais sur how to turn one idea into 5 short videos.",
+    "script_word_count": 85,
+    "visual_asset_mode": "dashboard",
+    "visual_asset_spec": {
+      "chips": [
+        "DASHBOARD",
+        "EXAMPLE",
+        "NOTION",
+        "TURN"
+      ],
+      "eyebrow": "LIVE DASHBOARD CASE",
+      "footer_text": "MONITOR PROOF ACTION",
+      "highlight_lines": [
+        "UNE NOTE NOTION",
+        "DEVIENT UNE VIDEO",
+        "ERREUR UNE VIDEO"
+      ],
+      "layout_variant": "chart_focus",
+      "metrics": [
+        {
+          "label": "CASE",
+          "status": "REAL",
+          "value": "1"
+        },
+        {
+          "label": "QUEUE",
+          "status": "RUN",
+          "value": "7"
+        },
+        {
+          "label": "SYNC",
+          "status": "OK",
+          "value": "86"
+        }
+      ],
+      "mode": "dashboard",
+      "product_name": "OPS MONITOR",
+      "profile": "repurpose",
+      "proof_mode": "example",
+      "table_rows": [
+        {
+          "detail": "TURN",
+          "label": "SYSTEM",
+          "state": "LIVE"
+        },
+        {
+          "detail": "IDEA",
+          "label": "PROOF",
+          "state": "READY"
+        },
+        {
+          "detail": "SHORT",
+          "label": "ACTION",
+          "state": "RUN"
+        },
+        {
+          "detail": "SHIP",
+          "label": "OUTPUT",
+          "state": "DONE"
+        }
+      ],
+      "theme": "mint",
+      "title_lines": [
+        "TURN IDEA",
+        "SHORT"
+      ],
+      "tool_label": "NOTION",
+      "workflow_nodes": [
+        {
+          "state": "LIVE",
+          "subtitle": "LOAD",
+          "title": "INPUT"
+        },
+        {
+          "state": "READY",
+          "subtitle": "CHECK",
+          "title": "PROOF"
+        },
+        {
+          "state": "RUN",
+          "subtitle": "FLOW",
+          "title": "BUILD"
+        },
+        {
+          "state": "CHECK",
+          "subtitle": "HUMAN",
+          "title": "REVIEW"
+        },
+        {
+          "state": "DONE",
+          "subtitle": "DONE",
+          "title": "SHIP"
+        }
+      ]
+    },
+    "visual_generation_mode": "generated_dashboard",
+    "visual_layout": {
+      "chips": [
+        "DASHBOARD",
+        "EXAMPLE",
+        "NOTION",
+        "TURN"
+      ],
+      "eyebrow": "LIVE DASHBOARD CASE",
+      "footer_text": "MONITOR PROOF ACTION",
+      "product_name": "OPS MONITOR",
+      "signature": "dashboard:chart_focus",
+      "title_lines": [
+        "TURN IDEA",
+        "SHORT"
+      ],
+      "variant": "chart_focus"
+    },
+    "visual_layout_signature": "dashboard:chart_focus",
+    "visual_layout_variant": "chart_focus",
+    "visual_signature": "dashboard|mint|chart_focus",
+    "visual_source_format": "ppm",
+    "visual_source_resolution": "720x1280",
+    "visual_theme": "mint"
+  },
+  "status": "completed",
+  "template": "vertical_reel_v1",
+  "topic": "How to turn one idea into 5 short videos",
+  "updated_at": "2026-04-12T16:00:00.663864+00:00"
+}

@@ -1,0 +1,60 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "vertical_reel_v1",
+    "metadata": {
+      "language": "fr",
+      "platform": "short_video",
+      "voice_profile": "fr-default",
+      "niche": "ai_automation",
+      "anti_repetition": {
+        "lock_script_profile": true,
+        "window_size": 8,
+        "exclusion_window_size": 2,
+        "allowed_variation_fields": [
+          "script_hook_family",
+          "script_proof_mode",
+          "script_cta_family",
+          "script_body_structure",
+          "visual_asset_mode",
+          "visual_theme",
+          "visual_layout_variant"
+        ]
+      },
+      "editorial_profile_map": {
+        "by_niche": {
+          "ai_automation": "automation"
+        },
+        "topic_rules": [
+          {
+            "contains_any": ["automation", "agent", "workflow", "pipeline", "copilot", "crm", "review queue"],
+            "profile": "automation",
+            "reason": "automation niche lock"
+          }
+        ]
+      }
+    }
+  },
+  "topics": [
+    "Why your AI workflow still needs a human checkpoint",
+    "The field mapping mistake that ruins CRM automations",
+    "Your agent demo sounds smart but says nothing concrete",
+    "A lead routing automation can feel premium or robotic",
+    "The one handoff where most AI pipelines lose trust",
+    "Stop showing the tool, show the exception path",
+    "Why internal copilots fail on edge cases",
+    "The dashboard metric that hides automation failures",
+    "A support agent that replies fast can still feel wrong",
+    "The review queue is where AI operations become human",
+    "Your onboarding automation breaks when source text is messy",
+    "Three signs an AI workflow was designed by engineers only",
+    "The approval step that makes automation feel credible",
+    "If every step is perfect, the demo feels fake",
+    "One prompt cannot carry a whole content pipeline",
+    "Why your enrichment workflow creates silent errors",
+    "The fastest way to make an AI stack look more reliable",
+    "A good automation video names the tool and the failure mode",
+    "The audit trail matters more than the fancy agent",
+    "What a human reviewer should still own in an AI pipeline"
+  ]
+}

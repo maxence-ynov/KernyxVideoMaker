@@ -1,0 +1,931 @@
+{
+  "account": "tiktok_main",
+  "created_at": "2026-04-12T16:54:13.510219+00:00",
+  "errors": [],
+  "file_paths": {
+    "script": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/c08621cc455a4c058b7639da56261af1/script.txt",
+    "source_media": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/artifacts/c08621cc455a4c058b7639da56261af1/source_media.ppm"
+  },
+  "job_id": "c08621cc455a4c058b7639da56261af1",
+  "metadata": {
+    "anti_repetition": {
+      "allowed_variation_fields": [
+        "script_hook_family",
+        "script_proof_mode",
+        "script_cta_family",
+        "script_body_structure",
+        "visual_asset_mode",
+        "visual_theme",
+        "visual_layout_variant"
+      ],
+      "exclusion_window_size": 2,
+      "lock_script_profile": true,
+      "window_size": 6
+    },
+    "anti_repetition_script": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "body_structure": {
+          "enabled": true,
+          "field_name": "script_body_structure",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "lead_proof_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.854,
+              "signals": {
+                "script_body_structure": "lead_proof_close",
+                "script_signature": "repurpose|field_error|multi_angle|soft:proof|lead_proof_close"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "lead_mid_proof",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.186,
+              "signals": {
+                "script_body_structure": "lead_mid_proof",
+                "script_signature": "repurpose|field_error|multi_angle|soft:proof|lead_mid_proof"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "proof_mid_close",
+              "matched_job_ids": {
+                "script_body_structure": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 1.648,
+              "signals": {
+                "script_body_structure": "proof_mid_close",
+                "script_signature": "repurpose|field_error|multi_angle|soft:proof|proof_mid_close"
+              }
+            }
+          ],
+          "selected_key": "lead_proof_close",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "cta": {
+          "enabled": true,
+          "field_name": "script_cta",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "soft:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ],
+                "script_cta_signature": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 1.392,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:0",
+                "script_cta_text": "si tu veux, je peux te lister 3 autres erreurs terrain sur one note, three short videos."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "soft:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ],
+                "script_cta_signature": [
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 1.1,
+              "signals": {
+                "script_cta_family": "soft:proof",
+                "script_cta_signature": "soft:proof:1",
+                "script_cta_text": "je peux te donner les erreurs terrain qui reviennent le plus souvent ici."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": true,
+              "key": "comment:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_signature": [
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.527,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:1",
+                "script_cta_text": "commente terrain et je te renvoie la checklist des erreurs a enlever."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": true,
+              "key": "comment:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ],
+                "script_cta_signature": [
+                  "1a9641277b2e4826ae39e03585531dcd"
+                ]
+              },
+              "score": 1.933,
+              "signals": {
+                "script_cta_family": "comment:proof",
+                "script_cta_signature": "comment:proof:0",
+                "script_cta_text": "commente erreur et je te donne d'autres erreurs terrain concretes."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": true,
+              "key": "subscribe:proof:0",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ],
+                "script_cta_signature": [
+                  "b3d43253ea854fa0a0672ca385a6d49c"
+                ]
+              },
+              "score": 2.685,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:0",
+                "script_cta_text": "abonne-toi, je te montre les erreurs terrain a eliminer en premier."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": true,
+              "key": "subscribe:proof:1",
+              "matched_job_ids": {
+                "script_cta_family": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ],
+                "script_cta_signature": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ],
+                "script_cta_text": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 2.27,
+              "signals": {
+                "script_cta_family": "subscribe:proof",
+                "script_cta_signature": "subscribe:proof:1",
+                "script_cta_text": "abonne-toi, je detaille les erreurs qui flinguent ce type de video."
+              }
+            }
+          ],
+          "selected_key": "soft:proof:1",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "hook": {
+          "enabled": true,
+          "field_name": "script_hook",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "multi_angle|pain_memory",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "multi_angle",
+                "script_hook_signature": "multi_angle|pain_memory",
+                "script_hook_text": "une idee ne donne pas une video. elle donne plusieurs angles si tu changes la promesse. la theorie marque moins qu'une erreur terrain qu'on a deja subie."
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "multi_angle|field_pattern",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "multi_angle",
+                "script_hook_signature": "multi_angle|field_pattern",
+                "script_hook_text": "une idee ne donne pas une video. elle donne plusieurs angles si tu changes la promesse. le plus credible, c'est l'erreur terrain que tout le monde reconnait en vrai."
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "angle_shift|pain_memory",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "angle_shift",
+                "script_hook_signature": "angle_shift|pain_memory",
+                "script_hook_text": "le vrai levier n'est pas l'idee seule. c'est la variation d'angle. la theorie marque moins qu'une erreur terrain qu'on a deja subie."
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "angle_shift|field_pattern",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "angle_shift",
+                "script_hook_signature": "angle_shift|field_pattern",
+                "script_hook_text": "le vrai levier n'est pas l'idee seule. c'est la variation d'angle. le plus credible, c'est l'erreur terrain que tout le monde reconnait en vrai."
+              }
+            },
+            {
+              "base_rank": 4,
+              "hard_excluded": false,
+              "key": "idea_vs_promise|pain_memory",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "idea_vs_promise",
+                "script_hook_signature": "idea_vs_promise|pain_memory",
+                "script_hook_text": "le plus gros manque, c'est souvent l'angle, pas l'idee. la theorie marque moins qu'une erreur terrain qu'on a deja subie."
+              }
+            },
+            {
+              "base_rank": 5,
+              "hard_excluded": false,
+              "key": "idea_vs_promise|field_pattern",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_hook_family": "idea_vs_promise",
+                "script_hook_signature": "idea_vs_promise|field_pattern",
+                "script_hook_text": "le plus gros manque, c'est souvent l'angle, pas l'idee. le plus credible, c'est l'erreur terrain que tout le monde reconnait en vrai."
+              }
+            }
+          ],
+          "selected_key": "multi_angle|pain_memory",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "profile": {
+          "enabled": true,
+          "field_name": "script_profile",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "repurpose",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "script_profile": "repurpose"
+              }
+            }
+          ],
+          "selected_key": "repurpose",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "proof_mode": {
+          "enabled": true,
+          "field_name": "script_proof_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "example",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.269,
+              "signals": {
+                "script_proof_mode": "example"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "result",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.913,
+              "signals": {
+                "script_proof_mode": "result"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "tool",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "script_proof_mode": "tool"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "field_error",
+              "matched_job_ids": {
+                "script_proof_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "script_proof_mode": "field_error"
+              }
+            }
+          ],
+          "selected_key": "field_error",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "profile_lock": {
+        "analyzed_candidates": [
+          "repurpose",
+          "generic"
+        ],
+        "label": "repurpose",
+        "locked": true,
+        "niche": "content_repurpose",
+        "reason": "niche:content_repurpose",
+        "source": "editorial_profile_map.by_niche"
+      },
+      "window_job_ids": [
+        "b3d43253ea854fa0a0672ca385a6d49c",
+        "1a9641277b2e4826ae39e03585531dcd",
+        "4f8b80f18ad646f58abb8c0f345e5cde",
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "anti_repetition_visual": {
+      "config": {
+        "allowed_variation_fields": [
+          "script_body_structure",
+          "script_cta_family",
+          "script_hook_family",
+          "script_proof_mode",
+          "visual_asset_mode",
+          "visual_layout_variant",
+          "visual_theme"
+        ],
+        "enabled": true,
+        "exclusion_window_size": 2,
+        "field_weights": {
+          "script_body_structure": 1.2,
+          "script_cta_family": 1.3,
+          "script_cta_signature": 0.9,
+          "script_cta_text": 0.4,
+          "script_hook_family": 1.6,
+          "script_hook_signature": 1.2,
+          "script_hook_text": 0.4,
+          "script_profile": 0.8,
+          "script_proof_mode": 1.0,
+          "script_signature": 1.8,
+          "visual_asset_mode": 1.0,
+          "visual_layout_signature": 1.5,
+          "visual_signature": 1.8,
+          "visual_theme": 0.7
+        },
+        "hard_exclude_fields": [
+          "script_cta_family",
+          "script_hook_family",
+          "visual_layout_signature"
+        ],
+        "included_statuses": [
+          "completed",
+          "running",
+          "uploaded"
+        ],
+        "lock_script_profile": true,
+        "recency_decay": 0.72,
+        "window_size": 6
+      },
+      "decisions": {
+        "layout": {
+          "enabled": true,
+          "field_name": "visual_layout_signature",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "ops_grid",
+              "matched_job_ids": {
+                "visual_layout_signature": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.56,
+              "signals": {
+                "visual_layout_signature": "dashboard:ops_grid",
+                "visual_signature": "dashboard|midnight|ops_grid"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "chart_focus",
+              "matched_job_ids": {},
+              "score": 0.0,
+              "signals": {
+                "visual_layout_signature": "dashboard:chart_focus",
+                "visual_signature": "dashboard|midnight|chart_focus"
+              }
+            }
+          ],
+          "selected_key": "chart_focus",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "mode": {
+          "enabled": true,
+          "field_name": "visual_asset_mode",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "ui",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 1.269,
+              "signals": {
+                "visual_asset_mode": "ui"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "dashboard",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.373,
+              "signals": {
+                "visual_asset_mode": "dashboard"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "screenshot",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.913,
+              "signals": {
+                "visual_asset_mode": "screenshot"
+              }
+            },
+            {
+              "base_rank": 3,
+              "hard_excluded": false,
+              "key": "workflow",
+              "matched_job_ids": {
+                "visual_asset_mode": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde"
+                ]
+              },
+              "score": 0.518,
+              "signals": {
+                "visual_asset_mode": "workflow"
+              }
+            }
+          ],
+          "selected_key": "dashboard",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        },
+        "theme": {
+          "enabled": true,
+          "field_name": "visual_theme",
+          "scores": [
+            {
+              "base_rank": 0,
+              "hard_excluded": false,
+              "key": "signal",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "b3d43253ea854fa0a0672ca385a6d49c",
+                  "ad61db3ff3e14cf9a5a9c98506cf9714"
+                ]
+              },
+              "score": 0.961,
+              "signals": {
+                "visual_theme": "signal"
+              }
+            },
+            {
+              "base_rank": 1,
+              "hard_excluded": false,
+              "key": "midnight",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "4f8b80f18ad646f58abb8c0f345e5cde",
+                  "0fb134aaadf04144a0d11b4ffaaae317"
+                ]
+              },
+              "score": 0.498,
+              "signals": {
+                "visual_theme": "midnight"
+              }
+            },
+            {
+              "base_rank": 2,
+              "hard_excluded": false,
+              "key": "mint",
+              "matched_job_ids": {
+                "visual_theme": [
+                  "1a9641277b2e4826ae39e03585531dcd",
+                  "1e728f51096c4fe5a845a7bbaf3b4b92"
+                ]
+              },
+              "score": 0.692,
+              "signals": {
+                "visual_theme": "mint"
+              }
+            }
+          ],
+          "selected_key": "midnight",
+          "window_job_ids": [
+            "b3d43253ea854fa0a0672ca385a6d49c",
+            "1a9641277b2e4826ae39e03585531dcd",
+            "4f8b80f18ad646f58abb8c0f345e5cde",
+            "ad61db3ff3e14cf9a5a9c98506cf9714",
+            "1e728f51096c4fe5a845a7bbaf3b4b92",
+            "0fb134aaadf04144a0d11b4ffaaae317"
+          ]
+        }
+      },
+      "window_job_ids": [
+        "b3d43253ea854fa0a0672ca385a6d49c",
+        "1a9641277b2e4826ae39e03585531dcd",
+        "4f8b80f18ad646f58abb8c0f345e5cde",
+        "ad61db3ff3e14cf9a5a9c98506cf9714",
+        "1e728f51096c4fe5a845a7bbaf3b4b92",
+        "0fb134aaadf04144a0d11b4ffaaae317"
+      ]
+    },
+    "config_index": 6,
+    "config_path": "config/anti_repeat_v1_1_10_jobs.json",
+    "editorial_profile_map": {
+      "by_niche": {
+        "ai_pipeline": "automation",
+        "caption_retention": "subtitles",
+        "content_repurpose": "repurpose",
+        "scroll_retention": "hooks"
+      },
+      "topic_rules": [
+        {
+          "contains_any": [
+            "subtitle",
+            "subtitles",
+            "caption",
+            "captions"
+          ],
+          "profile": "subtitles",
+          "reason": "caption wording"
+        },
+        {
+          "contains_any": [
+            "workflow",
+            "automation",
+            "pipeline",
+            "agent"
+          ],
+          "profile": "automation",
+          "reason": "ops wording"
+        },
+        {
+          "contains_any": [
+            "idea",
+            "ideas",
+            "repurpose",
+            "series"
+          ],
+          "profile": "repurpose",
+          "reason": "repurpose wording"
+        },
+        {
+          "contains_any": [
+            "hook",
+            "hooks",
+            "scroll",
+            "retention",
+            "opening"
+          ],
+          "profile": "hooks",
+          "reason": "hook wording"
+        }
+      ]
+    },
+    "estimated_duration_seconds": 28,
+    "jobs_dir": "/home/vboxuser/projects/KernyxVideoMaker/tmp/anti_repeat_v1_1_demo/jobs",
+    "language": "fr",
+    "niche": "content_repurpose",
+    "platform": "short_video",
+    "script_backend": "local-template-v4-memory",
+    "script_body_structure": "lead_proof_close",
+    "script_cta_family": "soft:proof",
+    "script_cta_mode": "soft",
+    "script_cta_signature": "soft:proof:1",
+    "script_cta_text": "Je peux te donner les erreurs terrain qui reviennent le plus souvent ici.",
+    "script_hook_family": "multi_angle",
+    "script_hook_signature": "multi_angle|pain_memory",
+    "script_hook_text": "Une idee ne donne pas une video. Elle donne plusieurs angles si tu changes la promesse. La theorie marque moins qu'une erreur terrain qu'on a deja subie.",
+    "script_keywords": [
+      "note",
+      "three",
+      "short"
+    ],
+    "script_platform_label": "TikTok",
+    "script_point_count": 3,
+    "script_profile": "repurpose",
+    "script_profile_locked": true,
+    "script_profile_resolution": {
+      "analyzed_candidates": [
+        "repurpose",
+        "generic"
+      ],
+      "label": "repurpose",
+      "locked": true,
+      "niche": "content_repurpose",
+      "reason": "niche:content_repurpose",
+      "source": "editorial_profile_map.by_niche"
+    },
+    "script_profile_source": "editorial_profile_map.by_niche",
+    "script_proof_detail": "recycler la meme idee sans changer ni la promesse ni l'angle",
+    "script_proof_line": "Erreur terrain : recycler la meme idee sans changer ni la promesse ni l'angle.",
+    "script_proof_mode": "field_error",
+    "script_proof_tone": "direct",
+    "script_sections": {
+      "cta": "Je peux te donner les erreurs terrain qui reviennent le plus souvent ici.",
+      "hook": "Une idee ne donne pas une video. Elle donne plusieurs angles si tu changes la promesse. La theorie marque moins qu'une erreur terrain qu'on a deja subie.",
+      "points": [
+        "Une version pour l'erreur, une pour la methode, une pour l'exemple concret.",
+        "Erreur terrain : recycler la meme idee sans changer ni la promesse ni l'angle.",
+        "Avant d'ecrire, liste 3 promesses distinctes puis tourne seulement les plus nettes."
+      ]
+    },
+    "script_signature": "repurpose|field_error|multi_angle|soft:proof|lead_proof_close",
+    "script_text": "Une idee ne donne pas une video. Elle donne plusieurs angles si tu changes la promesse. La theorie marque moins qu'une erreur terrain qu'on a deja subie.\n\nUne version pour l'erreur, une pour la methode, une pour l'exemple concret.\n\nErreur terrain : recycler la meme idee sans changer ni la promesse ni l'angle.\n\nAvant d'ecrire, liste 3 promesses distinctes puis tourne seulement les plus nettes.\n\nJe peux te donner les erreurs terrain qui reviennent le plus souvent ici.",
+    "script_word_count": 77,
+    "visual_asset_mode": "dashboard",
+    "visual_asset_spec": {
+      "chips": [
+        "DASHBOARD",
+        "FIELD ERROR",
+        "NOTION",
+        "NOTE"
+      ],
+      "eyebrow": "LIVE DASHBOARD FIELD",
+      "footer_text": "FIELD CHECK BEFORE SHIP",
+      "highlight_lines": [
+        "RECYCLER LA MEME",
+        "IDEE SANS CHANGER",
+        "NI LA PROMESSE NI"
+      ],
+      "layout_variant": "chart_focus",
+      "metrics": [
+        {
+          "label": "FAIL",
+          "status": "CHECK",
+          "value": "5"
+        },
+        {
+          "label": "QUEUE",
+          "status": "RUN",
+          "value": "7"
+        },
+        {
+          "label": "SYNC",
+          "status": "OK",
+          "value": "93"
+        }
+      ],
+      "mode": "dashboard",
+      "product_name": "OPS MONITOR",
+      "profile": "repurpose",
+      "proof_mode": "field_error",
+      "table_rows": [
+        {
+          "detail": "NOTE",
+          "label": "SYSTEM",
+          "state": "LIVE"
+        },
+        {
+          "detail": "THREE",
+          "label": "PROOF",
+          "state": "READY"
+        },
+        {
+          "detail": "SHORT",
+          "label": "ACTION",
+          "state": "RUN"
+        },
+        {
+          "detail": "SHIP",
+          "label": "OUTPUT",
+          "state": "DONE"
+        }
+      ],
+      "theme": "midnight",
+      "title_lines": [
+        "NOTE THREE",
+        "SHORT"
+      ],
+      "tool_label": "NOTION",
+      "workflow_nodes": [
+        {
+          "state": "LIVE",
+          "subtitle": "LOAD",
+          "title": "INPUT"
+        },
+        {
+          "state": "READY",
+          "subtitle": "CHECK",
+          "title": "PROOF"
+        },
+        {
+          "state": "RUN",
+          "subtitle": "FLOW",
+          "title": "BUILD"
+        },
+        {
+          "state": "CHECK",
+          "subtitle": "HUMAN",
+          "title": "REVIEW"
+        },
+        {
+          "state": "DONE",
+          "subtitle": "DONE",
+          "title": "SHIP"
+        }
+      ]
+    },
+    "visual_generation_mode": "generated_dashboard",
+    "visual_layout": {
+      "chips": [
+        "DASHBOARD",
+        "FIELD ERROR",
+        "NOTION",
+        "NOTE"
+      ],
+      "eyebrow": "LIVE DASHBOARD FIELD",
+      "footer_text": "FIELD CHECK BEFORE SHIP",
+      "product_name": "OPS MONITOR",
+      "signature": "dashboard:chart_focus",
+      "title_lines": [
+        "NOTE THREE",
+        "SHORT"
+      ],
+      "variant": "chart_focus"
+    },
+    "visual_layout_signature": "dashboard:chart_focus",
+    "visual_layout_variant": "chart_focus",
+    "visual_signature": "dashboard|midnight|chart_focus",
+    "visual_source_format": "ppm",
+    "visual_source_resolution": "720x1280",
+    "visual_theme": "midnight",
+    "voice_profile": "fr-default"
+  },
+  "status": "completed",
+  "template": "vertical_reel_v1",
+  "topic": "One note, three short videos",
+  "updated_at": "2026-04-12T16:54:37.984482+00:00"
+}

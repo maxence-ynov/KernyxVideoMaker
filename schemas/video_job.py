@@ -4,11 +4,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
 import json
-from typing import Any, Mapping
+from typing import Any, ClassVar, Mapping
 from uuid import uuid4
 
 JSONPrimitive = str | int | float | bool | None
 JSONValue = JSONPrimitive | list["JSONValue"] | dict[str, "JSONValue"]
+CANONICAL_ARTIFACT_KEYS = (
+    "script",
+    "voice_audio",
+    "subtitles",
+    "source_media",
+    "final_video",
+)
+LEGACY_FILE_PATH_KEY_ALIASES = {
+    "video_output": "final_video",
+}
 
 
 def _utc_now() -> datetime:
@@ -43,16 +53,25 @@ def _normalize_json_value(value: Any) -> JSONValue:
     )
 
 
+def _normalize_file_path_key(key: str) -> str:
+    normalized_key = key.strip()
+    if not normalized_key:
+        raise ValueError("file path key must not be empty")
+    return LEGACY_FILE_PATH_KEY_ALIASES.get(normalized_key, normalized_key)
+
+
 class VideoJobStatus(StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
-    CANCELED = "canceled"
+    UPLOADED = "uploaded"
 
 
 @dataclass(slots=True)
 class VideoJob:
+    ARTIFACT_KEYS: ClassVar[tuple[str, ...]] = CANONICAL_ARTIFACT_KEYS
+
     topic: str
     template: str
     account: str
@@ -71,15 +90,28 @@ class VideoJob:
         self.job_id = self.job_id.strip()
         self.status = VideoJobStatus(self.status)
         self.errors = [str(error).strip() for error in self.errors if str(error).strip()]
-        self.file_paths = {
-            str(name): str(path)
-            for name, path in self.file_paths.items()
-            if str(name).strip() and str(path).strip()
-        }
-        self.metadata = {
-            key: _normalize_json_value(value)
-            for key, value in self.metadata.items()
-        }
+        original_file_paths = dict(self.file_paths)
+        self.file_paths = {}
+        for name, path in original_file_paths.items():
+            raw_name = str(name).strip()
+            if not raw_name:
+                continue
+            normalized_name = _normalize_file_path_key(raw_name)
+            normalized_path = str(path).strip()
+            if normalized_name and normalized_path:
+                existing_path = self.file_paths.get(normalized_name)
+                if existing_path is not None and existing_path != normalized_path:
+                    raise ValueError(
+                        f"conflicting file paths configured for '{normalized_name}'"
+                    )
+                self.file_paths[normalized_name] = normalized_path
+
+        original_metadata = dict(self.metadata)
+        self.metadata = {}
+        for key, value in original_metadata.items():
+            normalized_key = str(key).strip()
+            if normalized_key:
+                self.metadata[normalized_key] = _normalize_json_value(value)
         self.created_at = _parse_datetime(self.created_at)
         self.updated_at = _parse_datetime(self.updated_at)
 
@@ -95,8 +127,52 @@ class VideoJob:
     def touch(self) -> None:
         self.updated_at = _utc_now()
 
-    def set_status(self, status: VideoJobStatus) -> None:
+    def set_status(self, status: VideoJobStatus | str) -> None:
         self.status = VideoJobStatus(status)
+        self.touch()
+
+    def set_file_path(self, key: str, path: str) -> None:
+        normalized_key = _normalize_file_path_key(key)
+        normalized_path = path.strip()
+        if not normalized_path:
+            raise ValueError("path must not be empty")
+
+        self.file_paths[normalized_key] = normalized_path
+        self.touch()
+
+    def get_file_path(self, key: str) -> str | None:
+        return self.file_paths.get(_normalize_file_path_key(key))
+
+    def require_file_path(self, key: str) -> str:
+        path = self.get_file_path(key)
+        if path is None:
+            raise ValueError(f"missing required file path '{_normalize_file_path_key(key)}'")
+        return path
+
+    def set_final_video_path(self, path: str) -> None:
+        self.set_file_path("final_video", path)
+
+    def set_voice_audio_path(self, path: str) -> None:
+        self.set_file_path("voice_audio", path)
+
+    def set_subtitles_path(self, path: str) -> None:
+        self.set_file_path("subtitles", path)
+
+    def set_source_media_path(self, path: str) -> None:
+        self.set_file_path("source_media", path)
+
+    def set_script_path(self, path: str) -> None:
+        self.set_file_path("script", path)
+
+    def set_script_text(self, text: str) -> None:
+        self.set_metadata("script_text", text)
+
+    def set_metadata(self, key: str, value: JSONValue) -> None:
+        normalized_key = key.strip()
+        if not normalized_key:
+            raise ValueError("metadata key must not be empty")
+
+        self.metadata[normalized_key] = _normalize_json_value(value)
         self.touch()
 
     def add_error(self, error: str) -> None:
