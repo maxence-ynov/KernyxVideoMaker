@@ -1,0 +1,36 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "vertical_reel_v1",
+    "metadata": {
+      "language": "fr",
+      "platform": "short_video",
+      "voice_profile": "fr-default",
+      "visual_asset_mode": "auto",
+      "scene_transition_duration_seconds": 0.22
+    }
+  },
+  "topics": [
+    {
+      "topic": "3 hooks pour stopper le scroll en moins de 2 secondes",
+      "metadata": {
+        "script_proof_mode": "result",
+        "script_proof_result": "2 secondes de retention gagnees sur la premiere phrase"
+      }
+    },
+    {
+      "topic": "Comment transformer une idee en 5 videos courtes avec un workflow IA",
+      "metadata": {
+        "script_proof_mode": "tool",
+        "visual_asset_mode": "auto"
+      }
+    },
+    {
+      "topic": "Les erreurs de sous-titres qui cassent la retention sur TikTok",
+      "metadata": {
+        "script_proof_mode": "field_error",
+        "visual_asset_mode": "screenshot"
+      }
+    }
+  ]
+}

@@ -8,12 +8,14 @@ import re
 import shutil
 
 from pipeline.diversity_memory import DiversityCandidate, DiversityDecision, load_diversity_memory
+from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manifest, save_scene_manifest
 from schemas import VideoJob
 
 LOGGER = logging.getLogger(__name__)
 
 GENERATED_MEDIA_FILENAME = "source_media.ppm"
 COPIED_MEDIA_BASENAME = "source_media"
+SCENE_ASSETS_DIRNAME = "scene_assets"
 TARGET_WIDTH = 720
 TARGET_HEIGHT = 1280
 SOURCE_MEDIA_PATH_KEYS = (
@@ -252,6 +254,11 @@ class VisualAssetSpec:
 
 
 async def generate_visual_step(job: VideoJob, job_dir: Path) -> None:
+    scene_manifest = load_scene_manifest(job)
+    if scene_manifest is not None and len(scene_manifest.scenes) > 1:
+        await _generate_multi_scene_visuals(job, job_dir, scene_manifest)
+        return
+
     existing_source = _resolve_existing_source(job)
     if existing_source is not None:
         output_path = _stage_existing_source(job, job_dir, existing_source)
@@ -355,6 +362,168 @@ async def generate_visual_step(job: VideoJob, job_dir: Path) -> None:
     job.set_metadata("visual_source_format", output_path.suffix.lower().lstrip("."))
 
 
+async def _generate_multi_scene_visuals(
+    job: VideoJob,
+    job_dir: Path,
+    manifest: SceneManifest,
+) -> None:
+    existing_source = _resolve_existing_source(job)
+    scene_assets_dir = (job_dir / SCENE_ASSETS_DIRNAME).resolve()
+    scene_assets_dir.mkdir(parents=True, exist_ok=True)
+
+    rendered_scenes: list[SceneSegment] = []
+    visual_summaries: list[dict[str, object]] = []
+    anti_repetition_mode = "per_scene_generated"
+    primary_output_path: Path | None = None
+
+    if existing_source is not None:
+        staged_source = _stage_existing_source(job, job_dir, existing_source)
+        anti_repetition_mode = "per_scene_reused_source"
+        for scene in manifest.scenes:
+            rendered_scene = SceneSegment(
+                scene_id=scene.scene_id,
+                index=scene.index,
+                role=scene.role,
+                scene_type=scene.scene_type,
+                source_text=scene.source_text,
+                title_text=scene.title_text,
+                highlight_text=scene.highlight_text,
+                keywords=list(scene.keywords),
+                word_count=scene.word_count,
+                proof_mode=scene.proof_mode,
+                visual_asset_mode=scene.visual_asset_mode,
+                motion_effect=scene.motion_effect,
+                transition_effect=scene.transition_effect,
+                transition_duration_seconds=scene.transition_duration_seconds,
+                start_seconds=scene.start_seconds,
+                end_seconds=scene.end_seconds,
+                duration_seconds=scene.duration_seconds,
+                alignment_source=scene.alignment_source,
+                cue_timeline=list(scene.cue_timeline),
+                asset_path=str(staged_source.resolve()),
+                clip_path=scene.clip_path,
+                visual_theme=scene.visual_theme,
+                visual_layout_variant=scene.visual_layout_variant,
+            )
+            rendered_scenes.append(rendered_scene)
+            visual_summaries.append(
+                {
+                    "scene_id": scene.scene_id,
+                    "asset_path": str(staged_source.resolve()),
+                    "visual_asset_mode": scene.visual_asset_mode,
+                    "motion_effect": scene.motion_effect,
+                }
+            )
+        primary_output_path = staged_source
+    else:
+        for scene in manifest.scenes:
+            scene_output_path = scene_assets_dir / f"{scene.scene_id}.ppm"
+            scene_job = _build_scene_visual_job(job, scene)
+            _apply_intra_video_visual_diversity(
+                scene_job,
+                scene,
+                previous_scene=rendered_scenes[-1] if rendered_scenes else None,
+            )
+            spec, _decisions, _memory = _build_visual_asset_spec(scene_job)
+            _generate_visual_asset(scene_job, scene_output_path, spec)
+            rendered_scene = SceneSegment(
+                scene_id=scene.scene_id,
+                index=scene.index,
+                role=scene.role,
+                scene_type=scene.scene_type,
+                source_text=scene.source_text,
+                title_text=scene.title_text,
+                highlight_text=scene.highlight_text,
+                keywords=list(scene.keywords),
+                word_count=scene.word_count,
+                proof_mode=scene.proof_mode,
+                visual_asset_mode=scene.visual_asset_mode,
+                motion_effect=scene.motion_effect,
+                transition_effect=scene.transition_effect,
+                transition_duration_seconds=scene.transition_duration_seconds,
+                start_seconds=scene.start_seconds,
+                end_seconds=scene.end_seconds,
+                duration_seconds=scene.duration_seconds,
+                alignment_source=scene.alignment_source,
+                cue_timeline=list(scene.cue_timeline),
+                asset_path=str(scene_output_path.resolve()),
+                clip_path=scene.clip_path,
+                visual_theme=spec.theme,
+                visual_layout_variant=spec.layout_variant,
+            )
+            rendered_scenes.append(rendered_scene)
+            visual_summaries.append(
+                {
+                    "scene_id": scene.scene_id,
+                    "asset_path": str(scene_output_path.resolve()),
+                    "visual_asset_mode": scene.visual_asset_mode,
+                    "visual_theme": spec.theme,
+                    "visual_layout_variant": spec.layout_variant,
+                    "motion_effect": scene.motion_effect,
+                    "duration_seconds": scene.duration_seconds,
+                    "title_lines": list(spec.title_lines),
+                }
+            )
+            if primary_output_path is None:
+                primary_output_path = scene_output_path
+
+    if primary_output_path is None:
+        raise VisualGenerationError("multi-scene visual generation produced no source media")
+
+    updated_manifest = SceneManifest(
+        version=manifest.version,
+        strategy=manifest.strategy,
+        total_duration_seconds=manifest.total_duration_seconds,
+        primary_visual_asset_mode=manifest.primary_visual_asset_mode,
+        scenes=rendered_scenes,
+    )
+    save_scene_manifest(job, job_dir, updated_manifest)
+
+    dominant_mode = _resolve_dominant_scene_field(rendered_scenes, field_name="visual_asset_mode")
+    dominant_theme = _resolve_dominant_scene_field(rendered_scenes, field_name="visual_theme")
+    dominant_layout = _resolve_dominant_scene_field(rendered_scenes, field_name="visual_layout_variant")
+
+    job.set_source_media_path(str(primary_output_path.resolve()))
+    job.set_metadata("visual_generation_mode", "scene_pipeline_v2")
+    job.set_metadata("visual_scene_asset_count", len(rendered_scenes))
+    job.set_metadata("visual_scene_assets", visual_summaries)
+    job.set_metadata("visual_asset_mode", dominant_mode or manifest.primary_visual_asset_mode)
+    if dominant_theme:
+        job.set_metadata("visual_theme", dominant_theme)
+    if dominant_layout:
+        job.set_metadata("visual_layout_variant", dominant_layout)
+        job.set_metadata(
+            "visual_layout_signature",
+            _build_visual_layout_signature(
+                dominant_mode or manifest.primary_visual_asset_mode,
+                dominant_layout,
+            ),
+        )
+    if dominant_mode and dominant_theme and dominant_layout:
+        job.set_metadata(
+            "visual_signature",
+            _build_visual_signature(dominant_mode, dominant_theme, dominant_layout),
+        )
+    job.set_metadata(
+        "anti_repetition_visual",
+        {
+            "skipped": existing_source is not None,
+            "mode": anti_repetition_mode,
+            "scene_count": len(rendered_scenes),
+        },
+    )
+    job.set_metadata("visual_source_resolution", f"{TARGET_WIDTH}x{TARGET_HEIGHT}")
+    job.set_metadata("visual_source_format", primary_output_path.suffix.lower().lstrip("."))
+
+    LOGGER.info(
+        "job=%s visual_gen generated multi-scene assets count=%s primary=%s mode=%s",
+        job.job_id,
+        len(rendered_scenes),
+        primary_output_path,
+        dominant_mode or manifest.primary_visual_asset_mode,
+    )
+
+
 def _resolve_existing_source(job: VideoJob) -> ExistingSource | None:
     for key in SOURCE_MEDIA_PATH_KEYS:
         raw_value = job.file_paths.get(key)
@@ -411,6 +580,88 @@ def _stage_existing_source(job: VideoJob, job_dir: Path, source: ExistingSource)
     job.set_metadata("visual_source_origin", str(source.path))
     job.set_metadata("visual_source_input_key", source.key)
     return target_path
+
+
+def _build_scene_visual_job(job: VideoJob, scene: SceneSegment) -> VideoJob:
+    metadata = dict(job.metadata)
+    metadata["anti_repetition"] = {"enabled": False}
+    metadata["visual_asset_mode"] = scene.visual_asset_mode
+    metadata["visual_title_text"] = scene.title_text
+    metadata["visual_highlight_text"] = scene.highlight_text
+    metadata["visual_keywords"] = list(scene.keywords)
+    metadata["script_keywords"] = list(scene.keywords)
+    metadata["script_proof_mode"] = scene.proof_mode
+    metadata["scene_parent_script_profile"] = _read_text_metadata(job, "script_profile")
+    metadata["script_profile"] = _resolve_scene_profile(job, scene)
+    metadata["scene_role"] = scene.role
+    metadata["scene_type"] = scene.scene_type
+    metadata["scene_id"] = scene.scene_id
+    return VideoJob(
+        topic=scene.source_text or job.topic,
+        template=job.template,
+        account=job.account,
+        job_id=f"{job.job_id}-{scene.scene_id}",
+        file_paths=dict(job.file_paths),
+        metadata=metadata,
+    )
+
+
+def _resolve_scene_profile(job: VideoJob, scene: SceneSegment) -> str:
+    base_profile = _read_text_metadata(job, "script_profile")
+    if scene.scene_type == "workflow":
+        return "automation"
+    if scene.scene_type == "interface":
+        return "subtitles"
+    if scene.scene_type == "hook":
+        return "hooks"
+    if scene.scene_type == "proof":
+        return "generic"
+    if base_profile:
+        return base_profile
+    return "generic"
+
+
+def _apply_intra_video_visual_diversity(
+    scene_job: VideoJob,
+    scene: SceneSegment,
+    *,
+    previous_scene: SceneSegment | None,
+) -> None:
+    if previous_scene is None:
+        return
+
+    mode = scene.visual_asset_mode
+    if mode != previous_scene.visual_asset_mode:
+        return
+
+    if previous_scene.visual_theme and not _read_text_metadata(scene_job, "visual_theme"):
+        for theme in VISUAL_THEMES:
+            if theme != previous_scene.visual_theme:
+                scene_job.set_metadata("visual_theme", theme)
+                break
+
+    if previous_scene.visual_layout_variant and not _read_text_metadata(scene_job, "visual_layout_variant"):
+        variants = VISUAL_LAYOUT_VARIANTS.get(mode, ())
+        for variant in variants:
+            if variant != previous_scene.visual_layout_variant:
+                scene_job.set_metadata("visual_layout_variant", variant)
+                break
+
+
+def _resolve_dominant_scene_field(
+    scenes: list[SceneSegment],
+    *,
+    field_name: str,
+) -> str | None:
+    counts: dict[str, int] = {}
+    for scene in scenes:
+        value = getattr(scene, field_name)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        counts[value] = counts.get(value, 0) + 1
+    if not counts:
+        return None
+    return min(counts.items(), key=lambda item: (-item[1], item[0]))[0]
 
 
 def _build_visual_asset_spec(

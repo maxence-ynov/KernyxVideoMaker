@@ -8,7 +8,13 @@ from pathlib import Path
 import shutil
 from typing import Awaitable, Callable, Sequence
 
-from pipeline import assemble_video_step, generate_script_step, generate_visual_step, generate_voice_step
+from pipeline import (
+    assemble_video_step,
+    generate_script_step,
+    generate_visual_step,
+    generate_voice_step,
+    plan_scenes_step,
+)
 from schemas import VideoJob, VideoJobStatus
 from storage import VideoJobStore
 
@@ -179,6 +185,7 @@ def build_default_pipeline() -> tuple[PipelineStep, ...]:
             handler=generate_voice_step,
             output_artifacts=("voice_audio", "subtitles"),
         ),
+        PipelineStep(name="scene_planner", handler=plan_scenes_step),
         PipelineStep(
             name="visual_gen",
             handler=generate_visual_step,
