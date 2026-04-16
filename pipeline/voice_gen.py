@@ -2,21 +2,39 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import json
 import logging
+import os
 from pathlib import Path
 import re
 import shutil
-import wave
 
+from job_paths import (
+    SUBTITLES_FILENAME,
+    VOICE_AUDIO_FILENAME,
+    VOICE_AUDIO_RENDERING_FILENAME,
+    VOICE_BOUNDARIES_FILENAME,
+    VOICE_INPUT_FILENAME,
+    resolve_job_path,
+)
 from schemas import VideoJob
+
+try:
+    from edge_tts import Communicate
+except ImportError as exc:
+    Communicate = None
+    EDGE_TTS_IMPORT_ERROR = exc
+else:
+    EDGE_TTS_IMPORT_ERROR = None
 
 LOGGER = logging.getLogger(__name__)
 
-VOICE_AUDIO_FILENAME = "voice.wav"
-VOICE_AUDIO_TEMP_FILENAME = "voice.rendering.wav"
-SUBTITLES_FILENAME = "subtitles.srt"
-VOICE_INPUT_FILENAME = "voice_input.txt"
-DEFAULT_VOICE_PROFILE = "fr"
+VOICE_AUDIO_TEMP_FILENAME = VOICE_AUDIO_RENDERING_FILENAME
+VOICE_BOUNDARIES_TEMP_FILENAME = VOICE_BOUNDARIES_FILENAME
+DEFAULT_FRENCH_VOICE = "fr-FR-DeniseNeural"
+DEFAULT_FRENCH_MALE_VOICE = "fr-FR-HenriNeural"
+DEFAULT_ENGLISH_VOICE = "en-US-AriaNeural"
+DEFAULT_ENGLISH_MALE_VOICE = "en-US-GuyNeural"
 DEFAULT_VOICE_DELIVERY_STYLE = "tiktok_clear"
 DEFAULT_SPEECH_RATE = 150
 DEFAULT_PITCH = 46
@@ -30,22 +48,32 @@ DEFAULT_SUBTITLE_MAX_DURATION_SECONDS = 2.2
 DEFAULT_SUBTITLE_GAP_SECONDS = 0.03
 SCRIPT_METADATA_KEYS = ("script_text", "script_content")
 SCRIPT_PATH_KEYS = ("script", "script_path", "script_file", "script_file_path")
-VOICE_PROFILE_ALIASES = {
-    "fr-default": "fr",
-    "fr-female": "fr+f3",
-    "fr-male": "fr+m3",
-    "en-default": "en",
-    "en-female": "en+f3",
-    "en-male": "en+m3",
+VOICE_NAME_ALIASES = {
+    "fr": DEFAULT_FRENCH_VOICE,
+    "fr-default": DEFAULT_FRENCH_VOICE,
+    "fr-female": DEFAULT_FRENCH_VOICE,
+    "fr-male": DEFAULT_FRENCH_MALE_VOICE,
+    "fr+f3": DEFAULT_FRENCH_VOICE,
+    "fr+m3": DEFAULT_FRENCH_MALE_VOICE,
+    "en": DEFAULT_ENGLISH_VOICE,
+    "en-default": DEFAULT_ENGLISH_VOICE,
+    "en-female": DEFAULT_ENGLISH_VOICE,
+    "en-male": DEFAULT_ENGLISH_MALE_VOICE,
+    "en+f3": DEFAULT_ENGLISH_VOICE,
+    "en+m3": DEFAULT_ENGLISH_MALE_VOICE,
+}
+DEFAULT_VOICE_BY_LANGUAGE = {
+    "fr": DEFAULT_FRENCH_VOICE,
+    "en": DEFAULT_ENGLISH_VOICE,
 }
 VOICE_DELIVERY_PRESETS = {
-    "tiktok_clear": {"speed": 150, "pitch": 46, "amplitude": 115},
-    "tiktok_punchy": {"speed": 158, "pitch": 50, "amplitude": 120},
-    "tiktok_relaxed": {"speed": 142, "pitch": 44, "amplitude": 112},
+    "tiktok_clear": {"rate": "+0%", "pitch": "+0Hz", "volume": "+0%"},
+    "tiktok_punchy": {"rate": "+5%", "pitch": "+8Hz", "volume": "+5%"},
+    "tiktok_relaxed": {"rate": "-5%", "pitch": "-4Hz", "volume": "-3%"},
 }
 WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
-SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?;:])\s+|\n+", flags=re.UNICODE)
 CLAUSE_SPLIT_RE = re.compile(r"(?<=[.!?;:])\s+|(?<=,)\s+|\n+", flags=re.UNICODE)
+SIGNED_NUMERIC_RE = re.compile(r"([+-]?\d+(?:\.\d+)?)\s*(%|hz)?", flags=re.IGNORECASE)
 FR_NUMBER_WORDS = {
     0: "zero",
     1: "un",
@@ -79,9 +107,9 @@ class VoiceGenerationError(RuntimeError):
 @dataclass(slots=True, frozen=True)
 class VoiceDelivery:
     style: str
-    speech_rate: int
-    pitch: int
-    amplitude: int
+    rate: str
+    pitch: str
+    volume: str
 
 
 @dataclass(slots=True, frozen=True)
@@ -104,48 +132,60 @@ class ScriptInput:
 
 
 async def generate_voice_step(job: VideoJob, job_dir: Path) -> None:
-    engine_binary = _resolve_tts_binary()
+    _ensure_edge_tts_available()
     delivery = _resolve_voice_delivery(job)
     subtitle_settings = _resolve_subtitle_settings(job)
     script_input = _resolve_script_input(job, job_dir)
     audio_output_path = job_dir / VOICE_AUDIO_FILENAME
     temp_audio_output_path = job_dir / VOICE_AUDIO_TEMP_FILENAME
+    boundary_output_path = job_dir / VOICE_BOUNDARIES_TEMP_FILENAME
     subtitles_output_path = job_dir / SUBTITLES_FILENAME
     voice_name = _resolve_voice_name(job)
-
-    if audio_output_path.exists():
-        audio_output_path.unlink()
-    if temp_audio_output_path.exists():
-        temp_audio_output_path.unlink()
-    if subtitles_output_path.exists():
-        subtitles_output_path.unlink()
-
-    command = _build_tts_command(
-        engine_binary=engine_binary,
-        script_path=script_input.temp_path,
+    tts_invocation = _format_edge_tts_invocation(
         voice_name=voice_name,
-        speech_rate=delivery.speech_rate,
-        pitch=delivery.pitch,
-        amplitude=delivery.amplitude,
-        output_path=temp_audio_output_path,
+        delivery=delivery,
+        output_path=audio_output_path,
     )
-    LOGGER.info("job=%s voice_gen started engine=%s voice=%s", job.job_id, engine_binary, voice_name)
-    LOGGER.debug("job=%s tts_command=%s", job.job_id, _format_command(command))
+
+    _unlink_if_exists(
+        audio_output_path,
+        temp_audio_output_path,
+        boundary_output_path,
+        subtitles_output_path,
+    )
+
+    LOGGER.info(
+        "job=%s voice_gen started engine=edge-tts voice=%s rate=%s pitch=%s volume=%s",
+        job.job_id,
+        voice_name,
+        delivery.rate,
+        delivery.pitch,
+        delivery.volume,
+    )
+    LOGGER.debug("job=%s tts=%s", job.job_id, tts_invocation)
 
     try:
         try:
-            await _run_command(command)
-            if not temp_audio_output_path.exists() or temp_audio_output_path.stat().st_size == 0:
+            await _synthesize_with_edge_tts(
+                text=script_input.spoken_text,
+                voice_name=voice_name,
+                delivery=delivery,
+                audio_output_path=temp_audio_output_path,
+                boundary_output_path=boundary_output_path,
+            )
+            if not temp_audio_output_path.exists() or temp_audio_output_path.stat().st_size <= 0:
                 raise VoiceGenerationError(
-                    f"voice generator produced no audio output: {temp_audio_output_path}"
+                    f"edge-tts produced no audio output: {temp_audio_output_path}"
                 )
             temp_audio_output_path.replace(audio_output_path)
         except Exception:
-            if temp_audio_output_path.exists():
-                temp_audio_output_path.unlink()
+            _unlink_if_exists(temp_audio_output_path)
             raise
 
-        duration_seconds = _read_wav_duration_seconds(audio_output_path)
+        duration_seconds = await _read_audio_duration_seconds(
+            audio_output_path,
+            boundary_output_path=boundary_output_path,
+        )
         subtitle_cue_count = 0
         subtitles_generated = False
         try:
@@ -160,15 +200,14 @@ async def generate_voice_step(job: VideoJob, job_dir: Path) -> None:
             job.set_subtitles_path(str(subtitles_output_path.resolve()))
         except Exception as exc:
             LOGGER.warning("job=%s subtitle generation skipped: %s", job.job_id, exc)
-            if subtitles_output_path.exists():
-                subtitles_output_path.unlink()
+            _unlink_if_exists(subtitles_output_path)
 
         job.set_voice_audio_path(str(audio_output_path.resolve()))
-        job.set_metadata("voice_engine", engine_binary)
+        job.set_metadata("voice_engine", "edge-tts")
         job.set_metadata("voice_engine_voice", voice_name)
         job.set_metadata("voice_delivery_style", delivery.style)
         job.set_metadata("voice_duration_seconds", round(duration_seconds, 3))
-        job.set_metadata("voice_audio_format", "wav")
+        job.set_metadata("voice_audio_format", audio_output_path.suffix.lstrip("."))
         job.set_metadata("voice_script_source", script_input.source_label)
         job.set_metadata("voice_tts_text", script_input.spoken_text)
         job.set_metadata("subtitles_generated", subtitles_generated)
@@ -182,7 +221,7 @@ async def generate_voice_step(job: VideoJob, job_dir: Path) -> None:
                 "max_lines": subtitle_settings.max_lines,
             },
         )
-        job.set_metadata("tts_command", _format_command(command))
+        job.set_metadata("tts_command", tts_invocation)
 
         LOGGER.info(
             "job=%s voice_gen finished output=%s subtitles=%s duration=%.3fs",
@@ -192,17 +231,137 @@ async def generate_voice_step(job: VideoJob, job_dir: Path) -> None:
             duration_seconds,
         )
     finally:
-        if script_input.temp_path.exists():
-            script_input.temp_path.unlink()
+        _unlink_if_exists(script_input.temp_path, temp_audio_output_path, boundary_output_path)
 
 
-def _resolve_tts_binary() -> str:
-    for candidate in ("espeak-ng", "espeak"):
-        if shutil.which(candidate):
-            return candidate
-    raise VoiceGenerationError(
-        "no supported TTS engine found in PATH; install 'espeak-ng' or 'espeak'"
+def _ensure_edge_tts_available() -> None:
+    if Communicate is not None:
+        return
+
+    install_command = (
+        "py -3.11 -m pip install edge-tts"
+        if os.name == "nt"
+        else "python -m pip install edge-tts"
     )
+    detail = f" Import error: {EDGE_TTS_IMPORT_ERROR}" if EDGE_TTS_IMPORT_ERROR else ""
+    raise VoiceGenerationError(
+        "edge-tts is required for voice generation but is not installed. "
+        f"Install it with: {install_command}.{detail}"
+    )
+
+
+async def _synthesize_with_edge_tts(
+    *,
+    text: str,
+    voice_name: str,
+    delivery: VoiceDelivery,
+    audio_output_path: Path,
+    boundary_output_path: Path,
+) -> None:
+    communicator_cls = Communicate
+    if communicator_cls is None:
+        _ensure_edge_tts_available()
+        raise AssertionError("edge-tts communicator is unavailable")
+
+    try:
+        communicator = communicator_cls(
+            text=text,
+            voice=voice_name,
+            rate=delivery.rate,
+            pitch=delivery.pitch,
+            volume=delivery.volume,
+            boundary="WordBoundary",
+        )
+        await communicator.save(str(audio_output_path), str(boundary_output_path))
+    except Exception as exc:
+        raise VoiceGenerationError(
+            f"edge-tts synthesis failed for voice '{voice_name}': {exc}"
+        ) from exc
+
+
+async def _read_audio_duration_seconds(
+    path: Path,
+    *,
+    boundary_output_path: Path,
+) -> float:
+    ffprobe_binary = shutil.which("ffprobe")
+    ffprobe_error: str | None = None
+    if ffprobe_binary is not None:
+        try:
+            duration_seconds = await _probe_audio_duration_seconds(ffprobe_binary, path)
+        except VoiceGenerationError as exc:
+            ffprobe_error = str(exc)
+        else:
+            if duration_seconds > 0:
+                return duration_seconds
+            ffprobe_error = f"generated audio has no positive duration: {path}"
+
+    boundary_duration_seconds = _read_boundary_duration_seconds(boundary_output_path)
+    if boundary_duration_seconds is not None and boundary_duration_seconds > 0:
+        return boundary_duration_seconds
+
+    if ffprobe_error is not None:
+        raise VoiceGenerationError(ffprobe_error)
+
+    raise VoiceGenerationError(
+        "unable to determine audio duration; install ffprobe or ensure edge-tts "
+        f"produces timing metadata for {path}"
+    )
+
+
+async def _probe_audio_duration_seconds(ffprobe_binary: str, path: Path) -> float:
+    payload = await _run_command(
+        [
+            ffprobe_binary,
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "json",
+            str(path),
+        ]
+    )
+    try:
+        data = json.loads(payload or "{}")
+    except json.JSONDecodeError as exc:
+        raise VoiceGenerationError(
+            f"ffprobe returned invalid JSON while probing {path}: {exc}"
+        ) from exc
+
+    duration_value = data.get("format", {}).get("duration")
+    if not isinstance(duration_value, str) or not duration_value.strip() or duration_value == "N/A":
+        raise VoiceGenerationError(f"ffprobe did not return a duration for {path}")
+
+    try:
+        return float(duration_value)
+    except ValueError as exc:
+        raise VoiceGenerationError(
+            f"ffprobe returned an invalid duration for {path}: {duration_value}"
+        ) from exc
+
+
+def _read_boundary_duration_seconds(path: Path) -> float | None:
+    if not path.exists():
+        return None
+
+    last_end_seconds = 0.0
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            item = json.loads(line)
+            if item.get("type") not in {"WordBoundary", "SentenceBoundary"}:
+                continue
+            offset = item.get("offset")
+            duration = item.get("duration")
+            if not isinstance(offset, (int, float)) or not isinstance(duration, (int, float)):
+                continue
+            last_end_seconds = max(last_end_seconds, (float(offset) + float(duration)) / 10_000_000.0)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    return last_end_seconds or None
 
 
 def _resolve_script_input(job: VideoJob, job_dir: Path) -> ScriptInput:
@@ -245,7 +404,7 @@ def _resolve_script_path(job: VideoJob) -> Path:
         if not isinstance(value, str) or not value.strip():
             continue
 
-        candidate_path = _resolve_job_path(job, value.strip())
+        candidate_path = resolve_job_path(job, value.strip())
         if not candidate_path.exists():
             raise VoiceGenerationError(f"script path configured in '{key}' does not exist: {candidate_path}")
         return candidate_path
@@ -255,22 +414,6 @@ def _resolve_script_path(job: VideoJob) -> Path:
         "missing script input for voice generation; expected script text in metadata or "
         f"a script path in one of: {joined_keys}"
     )
-
-
-def _resolve_job_path(job: VideoJob, raw_value: str) -> Path:
-    candidate_path = Path(raw_value).expanduser()
-    if candidate_path.is_absolute():
-        return candidate_path
-
-    resolved_from_cwd = candidate_path.resolve()
-    if resolved_from_cwd.exists():
-        return resolved_from_cwd
-
-    config_path = job.metadata.get("config_path")
-    if isinstance(config_path, str) and config_path.strip():
-        return (Path(config_path).expanduser().resolve().parent / candidate_path).resolve()
-
-    return resolved_from_cwd
 
 
 def _normalize_script_text(value: str) -> str:
@@ -334,16 +477,109 @@ def _resolve_voice_delivery(job: VideoJob) -> VoiceDelivery:
     else:
         normalized_style = DEFAULT_VOICE_DELIVERY_STYLE
 
-    preset = VOICE_DELIVERY_PRESETS.get(normalized_style, VOICE_DELIVERY_PRESETS[DEFAULT_VOICE_DELIVERY_STYLE])
-    speech_rate = _read_int_metadata(job, "voice_speed_wpm", preset["speed"], minimum=80, maximum=260)
-    pitch = _read_int_metadata(job, "voice_pitch", preset["pitch"], minimum=0, maximum=99)
-    amplitude = _read_int_metadata(job, "voice_amplitude", preset["amplitude"], minimum=0, maximum=200)
+    preset = VOICE_DELIVERY_PRESETS.get(
+        normalized_style,
+        VOICE_DELIVERY_PRESETS[DEFAULT_VOICE_DELIVERY_STYLE],
+    )
+    rate = _parse_percentage_setting(
+        job.metadata.get("edge_tts_rate"),
+        default=preset["rate"],
+        minimum=-75,
+        maximum=100,
+    )
+    pitch = _parse_hz_setting(
+        job.metadata.get("edge_tts_pitch"),
+        default=preset["pitch"],
+        minimum=-50,
+        maximum=50,
+    )
+    volume = _parse_percentage_setting(
+        job.metadata.get("edge_tts_volume"),
+        default=preset["volume"],
+        minimum=-50,
+        maximum=100,
+    )
+
+    if "edge_tts_rate" not in job.metadata and "voice_speed_wpm" in job.metadata:
+        speed = _read_int_metadata(job, "voice_speed_wpm", DEFAULT_SPEECH_RATE, minimum=80, maximum=260)
+        rate = _legacy_speed_to_rate(speed)
+    if "edge_tts_pitch" not in job.metadata and "voice_pitch" in job.metadata:
+        legacy_pitch = _read_int_metadata(job, "voice_pitch", DEFAULT_PITCH, minimum=0, maximum=99)
+        pitch = _legacy_pitch_to_edge(legacy_pitch)
+    if "edge_tts_volume" not in job.metadata and "voice_amplitude" in job.metadata:
+        amplitude = _read_int_metadata(job, "voice_amplitude", DEFAULT_AMPLITUDE, minimum=0, maximum=200)
+        volume = _legacy_amplitude_to_volume(amplitude)
+
     return VoiceDelivery(
         style=normalized_style if normalized_style in VOICE_DELIVERY_PRESETS else DEFAULT_VOICE_DELIVERY_STYLE,
-        speech_rate=speech_rate,
+        rate=rate,
         pitch=pitch,
-        amplitude=amplitude,
+        volume=volume,
     )
+
+
+def _parse_percentage_setting(
+    value: object,
+    *,
+    default: str,
+    minimum: int,
+    maximum: int,
+) -> str:
+    parsed_value = _parse_signed_numeric_value(value)
+    if parsed_value is None:
+        return default
+    return _format_signed_value(int(round(_clamp(parsed_value, minimum, maximum))), suffix="%")
+
+
+def _parse_hz_setting(
+    value: object,
+    *,
+    default: str,
+    minimum: int,
+    maximum: int,
+) -> str:
+    parsed_value = _parse_signed_numeric_value(value)
+    if parsed_value is None:
+        return default
+    return _format_signed_value(int(round(_clamp(parsed_value, minimum, maximum))), suffix="Hz")
+
+
+def _parse_signed_numeric_value(value: object) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if not isinstance(value, str):
+        return None
+
+    match = SIGNED_NUMERIC_RE.fullmatch(value.strip())
+    if match is None:
+        return None
+
+    try:
+        return float(match.group(1))
+    except ValueError:
+        return None
+
+
+def _format_signed_value(value: int, *, suffix: str) -> str:
+    sign = "+" if value >= 0 else ""
+    return f"{sign}{value}{suffix}"
+
+
+def _legacy_speed_to_rate(speed_wpm: int) -> str:
+    rate_delta = round(((speed_wpm - DEFAULT_SPEECH_RATE) / DEFAULT_SPEECH_RATE) * 100)
+    return _format_signed_value(int(_clamp(rate_delta, -75, 100)), suffix="%")
+
+
+def _legacy_pitch_to_edge(pitch: int) -> str:
+    pitch_delta_hz = round((pitch - DEFAULT_PITCH) * 2)
+    return _format_signed_value(int(_clamp(pitch_delta_hz, -50, 50)), suffix="Hz")
+
+
+def _legacy_amplitude_to_volume(amplitude: int) -> str:
+    volume_delta = round(amplitude - DEFAULT_AMPLITUDE)
+    return _format_signed_value(int(_clamp(volume_delta, -50, 100)), suffix="%")
 
 
 def _resolve_subtitle_settings(job: VideoJob) -> SubtitleSettings:
@@ -442,7 +678,7 @@ def _read_float_metadata(
     value = job.metadata.get(key, default)
     if isinstance(value, bool):
         return default
-    if isinstance(value, int | float):
+    if isinstance(value, (int, float)):
         return max(minimum, min(maximum, float(value)))
     if isinstance(value, str) and value.strip():
         try:
@@ -454,62 +690,34 @@ def _read_float_metadata(
 
 
 def _resolve_voice_name(job: VideoJob) -> str:
-    explicit_voice = job.metadata.get("espeak_voice")
-    if isinstance(explicit_voice, str) and explicit_voice.strip():
-        return explicit_voice.strip()
+    for key in ("edge_tts_voice", "voice_name", "voice_profile", "espeak_voice"):
+        value = job.metadata.get(key)
+        if not isinstance(value, str) or not value.strip():
+            continue
+        normalized_value = value.strip()
+        mapped_value = VOICE_NAME_ALIASES.get(normalized_value.lower())
+        if mapped_value is not None:
+            return mapped_value
+        return normalized_value
 
-    voice_profile = job.metadata.get("voice_profile", DEFAULT_VOICE_PROFILE)
-    if isinstance(voice_profile, str) and voice_profile.strip():
-        normalized_profile = voice_profile.strip().lower()
-        mapped_voice = VOICE_PROFILE_ALIASES.get(normalized_profile)
-        if mapped_voice:
-            return mapped_voice
-        if re.fullmatch(r"[a-z0-9_+\-]+", normalized_profile):
-            return normalized_profile
-
-    return DEFAULT_VOICE_PROFILE
+    language = _resolve_language(job)
+    return DEFAULT_VOICE_BY_LANGUAGE.get(language[:2], DEFAULT_FRENCH_VOICE)
 
 
-def _build_tts_command(
+def _format_edge_tts_invocation(
     *,
-    engine_binary: str,
-    script_path: Path,
     voice_name: str,
-    speech_rate: int,
-    pitch: int,
-    amplitude: int,
+    delivery: VoiceDelivery,
     output_path: Path,
-) -> list[str]:
-    return [
-        engine_binary,
-        "-b",
-        "1",
-        "-v",
-        voice_name,
-        "-s",
-        str(speech_rate),
-        "-p",
-        str(pitch),
-        "-a",
-        str(amplitude),
-        "-w",
-        str(output_path),
-        "-f",
-        str(script_path),
-    ]
-
-
-def _read_wav_duration_seconds(path: Path) -> float:
-    try:
-        with wave.open(str(path), "rb") as handle:
-            frame_count = handle.getnframes()
-            sample_rate = handle.getframerate()
-    except wave.Error as exc:
-        raise VoiceGenerationError(f"generated audio is not a readable WAV file: {path}") from exc
-
-    if sample_rate <= 0:
-        raise VoiceGenerationError(f"generated audio has an invalid sample rate: {path}")
-    return frame_count / float(sample_rate)
+) -> str:
+    return (
+        "edge-tts "
+        f"voice={_shell_quote(voice_name)} "
+        f"rate={delivery.rate} "
+        f"pitch={delivery.pitch} "
+        f"volume={delivery.volume} "
+        f"output={_shell_quote(str(output_path))}"
+    )
 
 
 def _build_subtitle_content(
@@ -675,6 +883,12 @@ def _format_srt_timestamp(value: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
+def _unlink_if_exists(*paths: Path) -> None:
+    for path in paths:
+        if path.exists():
+            path.unlink()
+
+
 def _format_command(command: list[str]) -> str:
     return " ".join(_shell_quote(part) for part in command)
 
@@ -688,7 +902,7 @@ def _shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
-async def _run_command(command: list[str]) -> None:
+async def _run_command(command: list[str]) -> str:
     process = await asyncio.create_subprocess_exec(
         *command,
         stdout=asyncio.subprocess.PIPE,
@@ -704,6 +918,8 @@ async def _run_command(command: list[str]) -> None:
             f"command failed with exit code {process.returncode}: "
             f"{_format_command(command)}\n{error_output}"
         )
+
+    return stdout_text
 
 
 __all__ = ["VoiceGenerationError", "generate_voice_step"]

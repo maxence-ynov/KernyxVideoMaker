@@ -7,9 +7,9 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
+from job_paths import SCENE_MANIFEST_FILENAME, resolve_job_path
 from schemas import JSONValue, VideoJob
 
-SCENE_MANIFEST_FILENAME = "scene_manifest.json"
 SCENE_PIPELINE_VERSION = "multi_scene_v2"
 DEFAULT_SCENE_TRANSITION = "cut"
 DEFAULT_SCENE_TRANSITION_DURATION_SECONDS = 0.0
@@ -319,7 +319,7 @@ def load_scene_manifest(job: VideoJob) -> SceneManifest | None:
     if not isinstance(raw_path, str) or not raw_path.strip():
         return None
 
-    manifest_path = _resolve_job_path(job, raw_path)
+    manifest_path = resolve_job_path(job, raw_path)
     if not manifest_path.exists():
         return None
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -432,10 +432,10 @@ def _load_subtitle_cues(job: VideoJob) -> list[SubtitleCue]:
 def _resolve_subtitles_path(job: VideoJob) -> Path | None:
     raw_path = job.get_file_path("subtitles")
     if raw_path:
-        return _resolve_job_path(job, raw_path)
+        return resolve_job_path(job, raw_path)
     metadata_path = job.metadata.get("subtitles")
     if isinstance(metadata_path, str) and metadata_path.strip():
-        return _resolve_job_path(job, metadata_path)
+        return resolve_job_path(job, metadata_path)
     return None
 
 
@@ -814,7 +814,7 @@ def _read_script_text(job: VideoJob) -> str:
 
     script_path = job.get_file_path("script")
     if script_path:
-        resolved = _resolve_job_path(job, script_path)
+        resolved = resolve_job_path(job, script_path)
         if resolved.exists():
             content = resolved.read_text(encoding="utf-8").strip()
             if content:
@@ -1083,22 +1083,6 @@ def _merge_keywords(left: list[str], right: list[str]) -> list[str]:
 
 def _count_words(text: str) -> int:
     return len(WORD_RE.findall(text))
-
-
-def _resolve_job_path(job: VideoJob, raw_value: str) -> Path:
-    candidate_path = Path(raw_value).expanduser()
-    if candidate_path.is_absolute():
-        return candidate_path
-
-    resolved_from_cwd = candidate_path.resolve()
-    if resolved_from_cwd.exists():
-        return resolved_from_cwd
-
-    config_path = job.metadata.get("config_path")
-    if isinstance(config_path, str) and config_path.strip():
-        return (Path(config_path).expanduser().resolve().parent / candidate_path).resolve()
-
-    return resolved_from_cwd
 
 
 def _read_optional_text(value: object) -> str | None:

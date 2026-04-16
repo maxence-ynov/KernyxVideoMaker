@@ -7,17 +7,38 @@ from pathlib import Path
 import re
 import shutil
 
+from job_paths import (
+    SCENE_ASSETS_DIRNAME,
+    build_scene_asset_filename,
+    build_source_media_artifact_filename,
+    resolve_job_path,
+)
 from pipeline.diversity_memory import DiversityCandidate, DiversityDecision, load_diversity_memory
+from pipeline.scene_asset_selector import (
+    AssetCatalog,
+    AssetCatalogError,
+    AssetSelectionContext,
+    build_asset_selection_context,
+    build_scene_visual_intent,
+    load_asset_catalog,
+    register_selected_asset,
+    resolve_scene_asset as resolve_catalog_scene_asset,
+)
 from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manifest, save_scene_manifest
+from pipeline.visual_manifest import (
+    SceneVisualAsset,
+    VISUAL_MANIFEST_VERSION,
+    VisualManifest,
+    save_visual_manifest,
+)
 from schemas import VideoJob
 
 LOGGER = logging.getLogger(__name__)
 
-GENERATED_MEDIA_FILENAME = "source_media.ppm"
-COPIED_MEDIA_BASENAME = "source_media"
-SCENE_ASSETS_DIRNAME = "scene_assets"
+GENERATED_MEDIA_FILENAME = build_source_media_artifact_filename(".ppm")
 TARGET_WIDTH = 720
 TARGET_HEIGHT = 1280
+IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 SOURCE_MEDIA_PATH_KEYS = (
     "source_media",
     "source_media_path",
@@ -28,6 +49,8 @@ SOURCE_MEDIA_PATH_KEYS = (
     "image_source",
     "image_source_path",
 )
+SCENE_ASSET_CONFIG_KEYS = ("scene_assets", "scene_asset_map", "scene_assets_by_scene")
+SCENE_ASSET_POOL_KEYS = ("scene_asset_pool", "asset_pool", "source_media_pool")
 DEFAULT_VISUAL_THEME = "signal"
 DEFAULT_VISUAL_ASSET_MODE = "auto"
 VISUAL_THEMES = ("signal", "midnight", "mint")
@@ -190,6 +213,36 @@ class VisualGenerationError(RuntimeError):
 class ExistingSource:
     key: str
     path: Path
+
+
+@dataclass(slots=True, frozen=True)
+class ConfiguredSceneAsset:
+    path: Path
+    source_kind: str
+    order: int
+    selected_by: str
+    asset_origin_path: str
+
+
+@dataclass(slots=True)
+class SceneAssetSelectionState:
+    pool_assets: list[ConfiguredSceneAsset]
+    asset_catalog: AssetCatalog | None
+    selection_context: AssetSelectionContext
+
+
+@dataclass(slots=True, frozen=True)
+class ResolvedSceneAsset:
+    path: Path
+    asset_type: str
+    source_kind: str
+    selected_by: str
+    asset_origin_path: str
+    matched_tags: tuple[str, ...] = ()
+    matched_entities: tuple[str, ...] = ()
+    matched_visual_categories: tuple[str, ...] = ()
+    selection_score: float | None = None
+    reuse_rank: int | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -367,19 +420,42 @@ async def _generate_multi_scene_visuals(
     job_dir: Path,
     manifest: SceneManifest,
 ) -> None:
-    existing_source = _resolve_existing_source(job)
     scene_assets_dir = (job_dir / SCENE_ASSETS_DIRNAME).resolve()
     scene_assets_dir.mkdir(parents=True, exist_ok=True)
 
+    explicit_scene_assets = _build_explicit_scene_asset_map(job, manifest)
+    try:
+        asset_catalog = load_asset_catalog(job)
+    except AssetCatalogError as exc:
+        raise VisualGenerationError(str(exc)) from exc
+    selection_state = SceneAssetSelectionState(
+        pool_assets=_build_scene_asset_pool(job),
+        asset_catalog=asset_catalog,
+        selection_context=build_asset_selection_context(job),
+    )
     rendered_scenes: list[SceneSegment] = []
+    visual_manifest_scenes: list[SceneVisualAsset] = []
     visual_summaries: list[dict[str, object]] = []
-    anti_repetition_mode = "per_scene_generated"
     primary_output_path: Path | None = None
+    generated_scene_count = 0
+    external_scene_count = 0
+    selected_by_counts: dict[str, int] = {}
 
-    if existing_source is not None:
-        staged_source = _stage_existing_source(job, job_dir, existing_source)
-        anti_repetition_mode = "per_scene_reused_source"
-        for scene in manifest.scenes:
+    for scene in manifest.scenes:
+        resolved_asset = _resolve_scene_asset(
+            job,
+            scene,
+            explicit_scene_assets=explicit_scene_assets,
+            selection_state=selection_state,
+        )
+        visual_theme = scene.visual_theme
+        visual_layout_variant = scene.visual_layout_variant
+        summary: dict[str, object]
+
+        if resolved_asset is not None:
+            staged_asset_path = _stage_scene_asset(scene_assets_dir, scene, resolved_asset.path)
+            asset_output_path = staged_asset_path.resolve()
+            external_scene_count += 1
             rendered_scene = SceneSegment(
                 scene_id=scene.scene_id,
                 index=scene.index,
@@ -400,24 +476,31 @@ async def _generate_multi_scene_visuals(
                 duration_seconds=scene.duration_seconds,
                 alignment_source=scene.alignment_source,
                 cue_timeline=list(scene.cue_timeline),
-                asset_path=str(staged_source.resolve()),
+                asset_path=str(asset_output_path),
                 clip_path=scene.clip_path,
-                visual_theme=scene.visual_theme,
-                visual_layout_variant=scene.visual_layout_variant,
+                visual_theme=visual_theme,
+                visual_layout_variant=visual_layout_variant,
             )
-            rendered_scenes.append(rendered_scene)
-            visual_summaries.append(
-                {
-                    "scene_id": scene.scene_id,
-                    "asset_path": str(staged_source.resolve()),
-                    "visual_asset_mode": scene.visual_asset_mode,
-                    "motion_effect": scene.motion_effect,
-                }
-            )
-        primary_output_path = staged_source
-    else:
-        for scene in manifest.scenes:
-            scene_output_path = scene_assets_dir / f"{scene.scene_id}.ppm"
+            summary = {
+                "scene_id": scene.scene_id,
+                "scene_index": scene.index,
+                "asset_path": str(asset_output_path),
+                "asset_origin_path": resolved_asset.asset_origin_path,
+                "asset_type": resolved_asset.asset_type,
+                "source_kind": resolved_asset.source_kind,
+                "selected_by": resolved_asset.selected_by,
+                "matched_tags": list(resolved_asset.matched_tags),
+                "matched_entities": list(resolved_asset.matched_entities),
+                "matched_visual_categories": list(resolved_asset.matched_visual_categories),
+                "selection_score": resolved_asset.selection_score,
+                "reuse_rank": resolved_asset.reuse_rank,
+                "visual_asset_mode": scene.visual_asset_mode,
+                "motion_effect": scene.motion_effect,
+                "transition_effect": scene.transition_effect,
+                "transition_duration_seconds": scene.transition_duration_seconds,
+            }
+        else:
+            scene_output_path = scene_assets_dir / build_scene_asset_filename(scene.index, ".ppm")
             scene_job = _build_scene_visual_job(job, scene)
             _apply_intra_video_visual_diversity(
                 scene_job,
@@ -426,6 +509,10 @@ async def _generate_multi_scene_visuals(
             )
             spec, _decisions, _memory = _build_visual_asset_spec(scene_job)
             _generate_visual_asset(scene_job, scene_output_path, spec)
+            asset_output_path = scene_output_path.resolve()
+            generated_scene_count += 1
+            visual_theme = spec.theme
+            visual_layout_variant = spec.layout_variant
             rendered_scene = SceneSegment(
                 scene_id=scene.scene_id,
                 index=scene.index,
@@ -446,26 +533,70 @@ async def _generate_multi_scene_visuals(
                 duration_seconds=scene.duration_seconds,
                 alignment_source=scene.alignment_source,
                 cue_timeline=list(scene.cue_timeline),
-                asset_path=str(scene_output_path.resolve()),
+                asset_path=str(asset_output_path),
                 clip_path=scene.clip_path,
                 visual_theme=spec.theme,
                 visual_layout_variant=spec.layout_variant,
             )
-            rendered_scenes.append(rendered_scene)
-            visual_summaries.append(
-                {
-                    "scene_id": scene.scene_id,
-                    "asset_path": str(scene_output_path.resolve()),
-                    "visual_asset_mode": scene.visual_asset_mode,
-                    "visual_theme": spec.theme,
-                    "visual_layout_variant": spec.layout_variant,
-                    "motion_effect": scene.motion_effect,
-                    "duration_seconds": scene.duration_seconds,
-                    "title_lines": list(spec.title_lines),
-                }
+            summary = {
+                "scene_id": scene.scene_id,
+                "scene_index": scene.index,
+                "asset_path": str(asset_output_path),
+                "asset_origin_path": str(asset_output_path),
+                "asset_type": "image",
+                "source_kind": "generated",
+                "selected_by": "generated",
+                "matched_tags": [],
+                "matched_entities": [],
+                "matched_visual_categories": [],
+                "selection_score": None,
+                "reuse_rank": None,
+                "visual_asset_mode": scene.visual_asset_mode,
+                "visual_theme": spec.theme,
+                "visual_layout_variant": spec.layout_variant,
+                "motion_effect": scene.motion_effect,
+                "transition_effect": scene.transition_effect,
+                "transition_duration_seconds": scene.transition_duration_seconds,
+                "duration_seconds": scene.duration_seconds,
+                "title_lines": list(spec.title_lines),
+            }
+
+        rendered_scenes.append(rendered_scene)
+        visual_manifest_scenes.append(
+            SceneVisualAsset(
+                scene_id=scene.scene_id,
+                scene_index=scene.index,
+                asset_path=str(asset_output_path),
+                asset_type=summary["asset_type"],
+                source_kind=summary["source_kind"],
+                selected_by=summary["selected_by"],
+                asset_origin_path=str(summary["asset_origin_path"]),
+                matched_tags=tuple(str(item) for item in summary["matched_tags"]),
+                matched_entities=tuple(str(item) for item in summary["matched_entities"]),
+                matched_visual_categories=tuple(
+                    str(item) for item in summary["matched_visual_categories"]
+                ),
+                selection_score=(
+                    float(summary["selection_score"])
+                    if summary["selection_score"] is not None
+                    else None
+                ),
+                reuse_rank=(
+                    int(summary["reuse_rank"])
+                    if summary["reuse_rank"] is not None
+                    else None
+                ),
+                visual_asset_mode=scene.visual_asset_mode,
+                motion_effect=scene.motion_effect,
+                transition_effect=scene.transition_effect,
+                transition_duration_seconds=scene.transition_duration_seconds,
             )
-            if primary_output_path is None:
-                primary_output_path = scene_output_path
+        )
+        visual_summaries.append(summary)
+        selected_by = str(summary["selected_by"])
+        selected_by_counts[selected_by] = selected_by_counts.get(selected_by, 0) + 1
+        if primary_output_path is None:
+            primary_output_path = asset_output_path
 
     if primary_output_path is None:
         raise VisualGenerationError("multi-scene visual generation produced no source media")
@@ -478,6 +609,11 @@ async def _generate_multi_scene_visuals(
         scenes=rendered_scenes,
     )
     save_scene_manifest(job, job_dir, updated_manifest)
+    save_visual_manifest(
+        job,
+        job_dir,
+        VisualManifest(version=VISUAL_MANIFEST_VERSION, scenes=visual_manifest_scenes),
+    )
 
     dominant_mode = _resolve_dominant_scene_field(rendered_scenes, field_name="visual_asset_mode")
     dominant_theme = _resolve_dominant_scene_field(rendered_scenes, field_name="visual_theme")
@@ -507,12 +643,21 @@ async def _generate_multi_scene_visuals(
     job.set_metadata(
         "anti_repetition_visual",
         {
-            "skipped": existing_source is not None,
-            "mode": anti_repetition_mode,
+            "skipped": generated_scene_count == 0,
+            "mode": _resolve_scene_asset_strategy(
+                generated_scene_count=generated_scene_count,
+                external_scene_count=external_scene_count,
+                selected_by_counts=selected_by_counts,
+            ),
             "scene_count": len(rendered_scenes),
         },
     )
-    job.set_metadata("visual_source_resolution", f"{TARGET_WIDTH}x{TARGET_HEIGHT}")
+    job.set_metadata(
+        "visual_source_resolution",
+        f"{TARGET_WIDTH}x{TARGET_HEIGHT}"
+        if generated_scene_count == len(rendered_scenes)
+        else "mixed",
+    )
     job.set_metadata("visual_source_format", primary_output_path.suffix.lower().lstrip("."))
 
     LOGGER.info(
@@ -536,7 +681,7 @@ def _resolve_existing_source(job: VideoJob) -> ExistingSource | None:
         if not normalized_value:
             continue
 
-        candidate_path = _resolve_job_path(job, normalized_value)
+        candidate_path = resolve_job_path(job, normalized_value)
         if not candidate_path.exists():
             raise VisualGenerationError(
                 f"source media configured in '{key}' does not exist: {candidate_path}"
@@ -550,28 +695,12 @@ def _resolve_existing_source(job: VideoJob) -> ExistingSource | None:
     return None
 
 
-def _resolve_job_path(job: VideoJob, raw_value: str) -> Path:
-    candidate_path = Path(raw_value).expanduser()
-    if candidate_path.is_absolute():
-        return candidate_path
-
-    resolved_from_cwd = candidate_path.resolve()
-    if resolved_from_cwd.exists():
-        return resolved_from_cwd
-
-    config_path = job.metadata.get("config_path")
-    if isinstance(config_path, str) and config_path.strip():
-        return (Path(config_path).expanduser().resolve().parent / candidate_path).resolve()
-
-    return resolved_from_cwd
-
-
 def _stage_existing_source(job: VideoJob, job_dir: Path, source: ExistingSource) -> Path:
     suffix = source.path.suffix.lower()
     if not suffix:
         raise VisualGenerationError(f"source media has no file extension: {source.path}")
 
-    target_path = job_dir / f"{COPIED_MEDIA_BASENAME}{suffix}"
+    target_path = job_dir / build_source_media_artifact_filename(suffix)
     if source.path.resolve() != target_path.resolve():
         shutil.copy2(source.path, target_path)
     elif not target_path.exists():
@@ -580,6 +709,370 @@ def _stage_existing_source(job: VideoJob, job_dir: Path, source: ExistingSource)
     job.set_metadata("visual_source_origin", str(source.path))
     job.set_metadata("visual_source_input_key", source.key)
     return target_path
+
+
+def _build_explicit_scene_asset_map(
+    job: VideoJob,
+    manifest: SceneManifest,
+) -> dict[str, ConfiguredSceneAsset]:
+    for key in SCENE_ASSET_CONFIG_KEYS:
+        raw_value = job.metadata.get(key)
+        if raw_value is None:
+            continue
+        return _parse_scene_asset_config(job, manifest, raw_value, source_key=key)
+    return {}
+
+
+def _parse_scene_asset_config(
+    job: VideoJob,
+    manifest: SceneManifest,
+    raw_value: object,
+    *,
+    source_key: str,
+) -> dict[str, ConfiguredSceneAsset]:
+    assignments: dict[str, ConfiguredSceneAsset] = {}
+    scenes_by_id = {scene.scene_id: scene for scene in manifest.scenes}
+    scenes_by_index = {scene.index: scene for scene in manifest.scenes}
+
+    if isinstance(raw_value, list):
+        if not raw_value:
+            raise VisualGenerationError(f"scene asset config '{source_key}' must not be empty")
+        for offset, item in enumerate(raw_value, start=1):
+            scene = scenes_by_index.get(offset)
+            if scene is None:
+                break
+            configured_asset = _build_configured_scene_asset(
+                job,
+                item,
+                source_kind=f"{source_key}[{offset}]",
+                order=offset - 1,
+                selected_by="explicit",
+            )
+            if configured_asset is None:
+                continue
+            if isinstance(item, dict):
+                scene = _resolve_scene_reference(
+                    manifest,
+                    scene_id=_read_optional_text(item.get("scene_id")),
+                    scene_index=_read_optional_int(item.get("scene_index") or item.get("index")),
+                    default_scene=scene,
+                )
+            assignments[scene.scene_id] = configured_asset
+        return assignments
+
+    if isinstance(raw_value, dict):
+        if not raw_value:
+            raise VisualGenerationError(f"scene asset config '{source_key}' must not be empty")
+        for order, (raw_scene_id, item) in enumerate(raw_value.items()):
+            scene_id = str(raw_scene_id).strip()
+            if not scene_id:
+                continue
+            scene = scenes_by_id.get(scene_id)
+            if scene is None:
+                raise VisualGenerationError(
+                    f"scene asset config '{source_key}' references an unknown scene_id: {scene_id}"
+                )
+            configured_asset = _build_configured_scene_asset(
+                job,
+                item,
+                source_kind=f"{source_key}.{scene_id}",
+                order=order,
+                selected_by="explicit",
+            )
+            if configured_asset is not None:
+                assignments[scene.scene_id] = configured_asset
+        return assignments
+
+    raise VisualGenerationError(
+        f"scene asset config '{source_key}' must be a list or object, got {type(raw_value).__name__}"
+    )
+
+
+def _build_scene_asset_pool(job: VideoJob) -> list[ConfiguredSceneAsset]:
+    for key in SCENE_ASSET_POOL_KEYS:
+        raw_value = job.metadata.get(key)
+        if raw_value is None:
+            continue
+        if not isinstance(raw_value, list):
+            raise VisualGenerationError(
+                f"scene asset pool '{key}' must be a list, got {type(raw_value).__name__}"
+            )
+        if not raw_value:
+            raise VisualGenerationError(f"scene asset pool '{key}' must not be empty")
+        pool_assets: list[ConfiguredSceneAsset] = []
+        for index, item in enumerate(raw_value):
+            configured_asset = _build_configured_scene_asset(
+                job,
+                item,
+                source_kind=f"{key}[{index + 1}]",
+                order=index,
+                selected_by="pool",
+            )
+            if configured_asset is not None:
+                pool_assets.append(configured_asset)
+        if not pool_assets:
+            raise VisualGenerationError(f"scene asset pool '{key}' resolved to no usable assets")
+        return pool_assets
+
+    existing_source = _resolve_existing_source(job)
+    if existing_source is None:
+        return []
+    return [
+        ConfiguredSceneAsset(
+            path=existing_source.path,
+            source_kind=f"legacy_source:{existing_source.key}",
+            order=0,
+            selected_by="legacy",
+            asset_origin_path=str(existing_source.path.resolve()),
+        )
+    ]
+
+
+def _build_configured_scene_asset(
+    job: VideoJob,
+    raw_value: object,
+    *,
+    source_kind: str,
+    order: int,
+    selected_by: str,
+) -> ConfiguredSceneAsset | None:
+    raw_path: str | None
+    if isinstance(raw_value, str):
+        raw_path = raw_value.strip()
+    elif isinstance(raw_value, dict):
+        raw_path = (
+            _read_optional_text(raw_value.get("asset_path"))
+            or _read_optional_text(raw_value.get("path"))
+            or _read_optional_text(raw_value.get("source_media_path"))
+            or _read_optional_text(raw_value.get("source_media"))
+        )
+    else:
+        raise VisualGenerationError(
+            f"scene asset entry '{source_kind}' must be a string or object, got {type(raw_value).__name__}"
+        )
+
+    if not raw_path:
+        return None
+
+    resolved_path = resolve_job_path(job, raw_path)
+    if not resolved_path.exists():
+        raise VisualGenerationError(f"scene asset '{source_kind}' does not exist: {resolved_path}")
+    if not resolved_path.is_file():
+        raise VisualGenerationError(f"scene asset '{source_kind}' is not a file: {resolved_path}")
+    return ConfiguredSceneAsset(
+        path=resolved_path.resolve(),
+        source_kind=source_kind,
+        order=order,
+        selected_by=selected_by,
+        asset_origin_path=str(resolved_path.resolve()),
+    )
+
+
+def _resolve_scene_reference(
+    manifest: SceneManifest,
+    *,
+    scene_id: str | None,
+    scene_index: int | None,
+    default_scene: SceneSegment,
+) -> SceneSegment:
+    if scene_id:
+        for scene in manifest.scenes:
+            if scene.scene_id == scene_id:
+                return scene
+        raise VisualGenerationError(f"scene asset config references an unknown scene_id: {scene_id}")
+
+    if scene_index is not None:
+        for scene in manifest.scenes:
+            if scene.index == scene_index:
+                return scene
+        raise VisualGenerationError(f"scene asset config references an unknown scene index: {scene_index}")
+
+    return default_scene
+
+
+def _resolve_scene_asset(
+    job: VideoJob,
+    scene: SceneSegment,
+    *,
+    explicit_scene_assets: dict[str, ConfiguredSceneAsset],
+    selection_state: SceneAssetSelectionState,
+) -> ResolvedSceneAsset | None:
+    if scene.asset_path:
+        return _build_resolved_scene_asset(
+            job,
+            raw_path=scene.asset_path,
+            source_kind="scene_manifest.asset_path",
+            selected_by="explicit",
+            selection_context=selection_state.selection_context,
+        )
+
+    configured_asset = explicit_scene_assets.get(scene.scene_id)
+    if configured_asset is not None:
+        return _build_resolved_configured_scene_asset(
+            configured_asset,
+            selection_context=selection_state.selection_context,
+        )
+
+    if selection_state.asset_catalog is not None:
+        scene_intent = build_scene_visual_intent(
+            scene,
+            selection_state.asset_catalog,
+            global_topic=job.topic,
+        )
+        try:
+            catalog_candidate = resolve_catalog_scene_asset(
+                scene_intent,
+                selection_state.asset_catalog,
+                selection_state.selection_context,
+            )
+        except AssetCatalogError as exc:
+            raise VisualGenerationError(str(exc)) from exc
+        if catalog_candidate is not None:
+            reuse_rank = register_selected_asset(
+                selection_state.selection_context,
+                catalog_candidate.entry.selection_key,
+            )
+            return ResolvedSceneAsset(
+                path=catalog_candidate.entry.path,
+                asset_type=catalog_candidate.entry.asset_type,
+                source_kind=catalog_candidate.entry.source_kind,
+                selected_by="catalog_match",
+                asset_origin_path=catalog_candidate.entry.selection_key,
+                matched_tags=catalog_candidate.matched_tags,
+                matched_entities=catalog_candidate.matched_entities,
+                matched_visual_categories=catalog_candidate.matched_visual_categories,
+                selection_score=float(catalog_candidate.score),
+                reuse_rank=reuse_rank,
+            )
+
+    pooled_asset = _select_scene_asset_from_pool(selection_state)
+    if pooled_asset is None:
+        return None
+    return _build_resolved_configured_scene_asset(
+        pooled_asset,
+        selection_context=selection_state.selection_context,
+    )
+
+
+def _build_resolved_scene_asset(
+    job: VideoJob,
+    *,
+    raw_path: str,
+    source_kind: str,
+    selected_by: str,
+    selection_context: AssetSelectionContext,
+) -> ResolvedSceneAsset:
+    asset_path = resolve_job_path(job, raw_path)
+    if not asset_path.exists():
+        raise VisualGenerationError(f"scene asset '{source_kind}' does not exist: {asset_path}")
+    if not asset_path.is_file():
+        raise VisualGenerationError(f"scene asset '{source_kind}' is not a file: {asset_path}")
+    asset_path = asset_path.resolve()
+    reuse_rank = register_selected_asset(selection_context, str(asset_path))
+    return ResolvedSceneAsset(
+        path=asset_path,
+        asset_type=_infer_asset_type(asset_path),
+        source_kind=source_kind,
+        selected_by=selected_by,
+        asset_origin_path=str(asset_path),
+        reuse_rank=reuse_rank,
+    )
+
+
+def _select_scene_asset_from_pool(
+    selection_state: SceneAssetSelectionState,
+) -> ConfiguredSceneAsset | None:
+    if not selection_state.pool_assets:
+        return None
+
+    selection_context = selection_state.selection_context
+    selected_asset = min(
+        selection_state.pool_assets,
+        key=lambda asset: (
+            -_score_pooled_asset(asset, selection_context=selection_context),
+            selection_context.current_video_usage_counts.get(asset.asset_origin_path, 0),
+            selection_context.historical_usage_counts.get(asset.asset_origin_path, 0),
+            asset.order,
+            str(asset.path),
+        ),
+    )
+    return selected_asset
+
+
+def _build_resolved_configured_scene_asset(
+    configured_asset: ConfiguredSceneAsset,
+    *,
+    selection_context: AssetSelectionContext,
+) -> ResolvedSceneAsset:
+    reuse_rank = register_selected_asset(selection_context, configured_asset.asset_origin_path)
+    return ResolvedSceneAsset(
+        path=configured_asset.path,
+        asset_type=_infer_asset_type(configured_asset.path),
+        source_kind=configured_asset.source_kind,
+        selected_by=configured_asset.selected_by,
+        asset_origin_path=configured_asset.asset_origin_path,
+        reuse_rank=reuse_rank,
+    )
+
+
+def _score_pooled_asset(
+    asset: ConfiguredSceneAsset,
+    *,
+    selection_context: AssetSelectionContext,
+) -> int:
+    asset_key = asset.asset_origin_path
+    score = 0
+    if asset_key in selection_context.recent_asset_keys[-selection_context.recent_window_size :]:
+        score -= 30
+    usage_count = selection_context.current_video_usage_counts.get(asset_key, 0)
+    if usage_count:
+        score -= 15 * usage_count
+    else:
+        score += 8
+    historical_usage = selection_context.historical_usage_counts.get(asset_key, 0)
+    score -= 5 * historical_usage
+    return score
+
+
+def _stage_scene_asset(scene_assets_dir: Path, scene: SceneSegment, source_path: Path) -> Path:
+    suffix = source_path.suffix.lower()
+    if not suffix:
+        raise VisualGenerationError(f"scene asset has no file extension: {source_path}")
+    target_path = scene_assets_dir / build_scene_asset_filename(scene.index, suffix)
+    if source_path.resolve() != target_path.resolve():
+        shutil.copy2(source_path, target_path)
+    elif not target_path.exists():
+        raise VisualGenerationError(f"expected scene asset is missing: {target_path}")
+    return target_path
+
+
+def _infer_asset_type(path: Path) -> str:
+    if not path.suffix:
+        raise VisualGenerationError(f"scene asset has no file extension: {path}")
+    return "image" if path.suffix.lower() in IMAGE_SUFFIXES else "video"
+
+
+def _resolve_scene_asset_strategy(
+    *,
+    generated_scene_count: int,
+    external_scene_count: int,
+    selected_by_counts: dict[str, int],
+) -> str:
+    if generated_scene_count and external_scene_count:
+        return "mixed_scene_assets"
+    if generated_scene_count:
+        return "generated_scene_assets"
+    if selected_by_counts.get("catalog_match"):
+        if selected_by_counts.get("pool") or selected_by_counts.get("legacy"):
+            return "catalog_with_pool_fallback"
+        return "catalog_scene_assets"
+    if selected_by_counts.get("pool"):
+        return "distributed_asset_pool"
+    if selected_by_counts.get("legacy"):
+        return "legacy_scene_assets"
+    if selected_by_counts.get("explicit"):
+        return "explicit_scene_assets"
+    return "no_scene_assets"
 
 
 def _build_scene_visual_job(job: VideoJob, scene: SceneSegment) -> VideoJob:
@@ -1172,6 +1665,27 @@ def _read_text_metadata(job: VideoJob, key: str) -> str | None:
     value = job.metadata.get(key)
     if isinstance(value, str) and value.strip():
         return " ".join(value.strip().split())
+    return None
+
+
+def _read_optional_text(value: object) -> str | None:
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _read_optional_int(value: object) -> int | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str) and value.strip():
+        try:
+            return int(value.strip())
+        except ValueError:
+            return None
     return None
 
 

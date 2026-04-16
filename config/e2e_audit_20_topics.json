@@ -5,7 +5,7 @@
     "metadata": {
       "language": "fr",
       "platform": "short_video",
-      "voice_profile": "fr-default",
+      "edge_tts_voice": "fr-FR-DeniseNeural",
       "niche": "ai_automation",
       "anti_repetition": {
         "lock_script_profile": true,

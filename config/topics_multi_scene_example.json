@@ -5,7 +5,7 @@
     "metadata": {
       "language": "fr",
       "platform": "short_video",
-      "voice_profile": "fr-default",
+      "edge_tts_voice": "fr-FR-DeniseNeural",
       "visual_asset_mode": "auto",
       "scene_transition_duration_seconds": 0.22
     }

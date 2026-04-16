@@ -1,0 +1,34 @@
+{
+  "assets": [
+    {
+      "path": "assets/hippopotamus.ppm",
+      "asset_type": "image",
+      "tags": ["hippopotame", "animal", "faune", "nature"],
+      "entities": ["hippopotame"],
+      "visual_categories": ["animal", "wildlife"],
+      "allowed_scene_types": ["hook", "explain", "proof"],
+      "style": ["illustrated"],
+      "language": "fr"
+    },
+    {
+      "path": "assets/automation_workflow.ppm",
+      "asset_type": "image",
+      "tags": ["automatisation", "workflow", "processus", "systeme"],
+      "entities": [],
+      "visual_categories": ["workflow", "automation", "system"],
+      "allowed_scene_types": ["workflow", "explain", "proof"],
+      "style": ["diagrammatic"],
+      "language": "fr"
+    },
+    {
+      "path": "assets/business_dashboard.ppm",
+      "asset_type": "image",
+      "tags": ["business", "dashboard", "resultats", "kpi"],
+      "entities": [],
+      "visual_categories": ["dashboard", "analytics", "metrics"],
+      "allowed_scene_types": ["proof", "explain", "workflow"],
+      "style": ["realistic"],
+      "language": "fr"
+    }
+  ]
+}

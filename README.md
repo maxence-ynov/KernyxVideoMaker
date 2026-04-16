@@ -21,6 +21,7 @@ Pipeline par defaut :
 Champs cles de la V1 :
 
 - `script_sections` : hook, points, cta produits par `script_gen`
+- `edge_tts_voice` : voix TTS configurable via `VideoJob.metadata` (ex: `fr-FR-DeniseNeural`)
 - `voice_duration_seconds` : duree audio reelle issue de `voice_gen`
 - `scene_manifest` : timeline complete des scenes stockee dans `VideoJob.metadata`
 - `scene_manifest_path` : copie JSON du manifeste dans le dossier artefacts du job
@@ -85,7 +86,7 @@ python3 scheduler.py --config config/topics_multi_scene_example.json --concurren
 Exemple de flux pour un sujet hooks TikTok :
 
 1. `script_gen` produit `hook + 3 points + cta`
-2. `voice_gen` cree `voice.wav` et mesure la duree audio reelle
+2. `voice_gen` cree `voice.mp3` via `edge-tts` et mesure la duree audio reelle
 3. `scene_planner` cree 5 scenes synchronisees
 4. `visual_gen` rend 5 visuels coherents
 5. `assembler` cree 5 clips, les concatene, puis ajoute voix + SRT

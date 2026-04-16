@@ -7,12 +7,11 @@ from pathlib import Path
 import re
 from typing import Mapping
 
+from job_paths import SCRIPT_FILENAME
 from pipeline.diversity_memory import DiversityCandidate, DiversityDecision, load_diversity_memory
 from schemas import JSONValue, VideoJob
 
 LOGGER = logging.getLogger(__name__)
-
-SCRIPT_FILENAME = "script.txt"
 DEFAULT_POINT_COUNT = 3
 MIN_POINT_COUNT = 2
 MAX_POINT_COUNT = 3

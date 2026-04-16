@@ -47,7 +47,7 @@ Pourquoi `--concurrency 1`:
 Pour chaque job, rassembler:
 
 - `script.txt`
-- `voice.wav`
+- `voice.mp3`
 - `subtitles.srt`
 - `source_media.*`
 - `final.mp4`

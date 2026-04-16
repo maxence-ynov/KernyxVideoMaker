@@ -8,9 +8,11 @@ from pathlib import Path
 import shutil
 from typing import Awaitable, Callable, Sequence
 
+from job_paths import get_job_artifacts_dir, resolve_job_path
 from pipeline import (
     assemble_video_step,
     generate_script_step,
+    plan_edit_step,
     generate_visual_step,
     generate_voice_step,
     plan_scenes_step,
@@ -56,7 +58,7 @@ class Orchestrator:
         self._validate_pipeline_contract()
 
     async def run_job(self, job: VideoJob) -> VideoJob:
-        job_dir = (self.artifacts_dir / job.job_id).resolve()
+        job_dir = get_job_artifacts_dir(self.artifacts_dir, job)
         job_dir.mkdir(parents=True, exist_ok=True)
 
         job.set_metadata("artifact_dir", str(job_dir))
@@ -121,7 +123,7 @@ class Orchestrator:
             raise ArtifactValidationError(
                 f"job {job.job_id} is missing required artifact '{artifact_name}'"
             ) from exc
-        return _resolve_job_path(job, raw_path)
+        return resolve_job_path(job, raw_path)
 
     def _validate_file_exists(self, job: VideoJob, artifact_name: str, path: Path) -> None:
         if not path.exists():
@@ -191,29 +193,13 @@ def build_default_pipeline() -> tuple[PipelineStep, ...]:
             handler=generate_visual_step,
             output_artifacts=("source_media",),
         ),
+        PipelineStep(name="edit_planner", handler=plan_edit_step),
         PipelineStep(
             name="assembler",
             handler=assemble_video_step,
             output_artifacts=("final_video",),
         ),
     )
-
-
-def _resolve_job_path(job: VideoJob, raw_value: str) -> Path:
-    candidate_path = Path(raw_value).expanduser()
-    if candidate_path.is_absolute():
-        return candidate_path
-
-    resolved_from_cwd = candidate_path.resolve()
-    if resolved_from_cwd.exists():
-        return resolved_from_cwd
-
-    config_path = job.metadata.get("config_path")
-    if isinstance(config_path, str) and config_path.strip():
-        return (Path(config_path).expanduser().resolve().parent / candidate_path).resolve()
-
-    return resolved_from_cwd
-
 
 def _ensure_binary_available(binary_name: str) -> None:
     if shutil.which(binary_name) is None:

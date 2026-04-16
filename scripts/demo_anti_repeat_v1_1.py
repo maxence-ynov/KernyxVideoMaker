@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from job_paths import get_job_artifacts_dir
 from pipeline.script_gen import generate_script_step
 from pipeline.visual_gen import generate_visual_step
 from scheduler import load_jobs_from_config
@@ -53,7 +54,7 @@ async def run_demo(config_path: Path, output_root: Path, *, clean: bool) -> Path
         job.set_metadata("jobs_dir", str(jobs_dir.resolve()))
         store.save(job)
 
-        job_dir = artifacts_dir / job.job_id
+        job_dir = get_job_artifacts_dir(artifacts_dir, job)
         await generate_script_step(job, job_dir)
         await generate_visual_step(job, job_dir)
         job.set_status(VideoJobStatus.COMPLETED)

@@ -1,0 +1,33 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "tiktok_ai",
+    "metadata": {
+      "voice_profile": "fr-default"
+    }
+  },
+  "topics": [
+    {
+      "topic": "Pourquoi l'hippopotame est plus dangereux qu'un lion",
+      "metadata": {
+        "scene_asset_catalog_path": "scene_asset_catalog.example.json"
+      }
+    },
+    {
+      "topic": "3 erreurs qui rendent ton automatisation inutile",
+      "metadata": {
+        "scene_asset_catalog_path": "scene_asset_catalog.example.json"
+      }
+    },
+    {
+      "topic": "Pourquoi ton intro manque d'energie",
+      "metadata": {
+        "scene_asset_catalog_path": "scene_asset_catalog.example.json",
+        "scene_asset_pool": [
+          "assets/fallback_pool.ppm",
+          "assets/automation_workflow.ppm"
+        ]
+      }
+    }
+  ]
+}
