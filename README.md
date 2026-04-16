@@ -12,7 +12,8 @@ Pipeline par defaut :
 2. `voice_gen`
 3. `scene_planner`
 4. `visual_gen`
-5. `assembler`
+5. `edit_planner`
+6. `assembler`
 
 ## Architecture
 
@@ -26,6 +27,8 @@ Champs cles de la V1 :
 - `scene_manifest` : timeline complete des scenes stockee dans `VideoJob.metadata`
 - `scene_manifest_path` : copie JSON du manifeste dans le dossier artefacts du job
 - `visual_scene_assets` : resume des assets rendus pour chaque scene
+- `edit_manifest` : decisions de montage par scene
+- `edit_manifest_path` : copie JSON du plan de montage
 - `video_structure` : `single_scene` ou `multi_scene_v1`
 
 ## Scene Planner
@@ -58,20 +61,50 @@ La logique reutilise le `visual_asset_mode` existant :
 - si `visual_asset_mode` est explicite, il est respecte
 - sinon il est choisi scene par scene a partir du type de scene
 
+## Edit Planner
+
+`pipeline/edit_planner.py` ajoute une couche de montage template-driven sans reproduire un NLE complet.
+
+Pour chaque scene, le planner decide :
+
+- `camera_pattern` + `camera_intensity`
+- `transition_in` + `transition_out`
+- `text_style`
+- `overlay_style`
+- `sfx_profile`
+- `bgm_profile`
+- `pace_role`
+
+Regles par defaut :
+
+- `hook` : rythme plus nerveux, `hook_focus`, pattern plus agressif
+- `proof` : plus stable, `proof_clean`, `proof_frame` possible
+- `explain` : lisible, `keyword_emphasis` ou `standard_subtitles`
+- `cta` : plus calme, `cta_band` possible, peu de chaos visuel
+
 ## FFmpeg
 
 `pipeline/assembler.py` monte la video finale en 2 temps :
 
-1. rendu d'un clip par scene avec motion + fade dans `scene_clips/`
-2. concat des clips puis mux final avec voix et sous-titres
+1. rendu d'un clip par scene avec motion/camera pattern, overlays, transitions et captions par scene dans `scene_clips/`
+2. concat des clips puis mux final avec voix et sound design optionnel
+
+Compatibilite :
+
+- si `edit_manifest` est present, l'assembleur utilise la nouvelle couche de montage
+- si `edit_manifest` est absent, il retombe sur le comportement legacy
+- si aucun asset audio de `bgm` ou `sfx` n'est trouve, le rendu continue sans casser le pipeline
 
 Artefacts multi-scenes :
 
 - `scene_manifest.json`
 - `scene_assets/scene_XX.ppm`
+- `06_edit_manifest.json`
 - `scene_clips/scene_XX.mp4`
 - `scenes.concat.mp4`
 - `final.mp4`
+
+Exemple de config de profils : `config/examples/edit_profiles.example.json`
 
 ## Exemple Concret
 
