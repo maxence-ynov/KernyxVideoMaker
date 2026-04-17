@@ -33,6 +33,10 @@ class SceneVisualAsset:
     motion_effect: str | None = None
     transition_effect: str | None = None
     transition_duration_seconds: float | None = None
+    scene_title: str | None = None
+    scene_keywords: tuple[str, ...] = ()
+    visual_asset_used: str | None = None
+    overlay_applied: tuple[str, ...] = ()
 
     def to_metadata(self) -> dict[str, JSONValue]:
         return {
@@ -60,6 +64,10 @@ class SceneVisualAsset:
                 if self.transition_duration_seconds is not None
                 else None
             ),
+            "scene_title": self.scene_title,
+            "scene_keywords": list(self.scene_keywords),
+            "visual_asset_used": self.visual_asset_used,
+            "overlay_applied": list(self.overlay_applied),
         }
 
     @classmethod
@@ -86,6 +94,10 @@ class SceneVisualAsset:
             motion_effect=_read_optional_text(payload.get("motion_effect")),
             transition_effect=_read_optional_text(payload.get("transition_effect")),
             transition_duration_seconds=_read_optional_float(payload.get("transition_duration_seconds")),
+            scene_title=_read_optional_text(payload.get("scene_title")),
+            scene_keywords=tuple(_read_optional_string_list(payload.get("scene_keywords"))),
+            visual_asset_used=_read_optional_text(payload.get("visual_asset_used")),
+            overlay_applied=tuple(_read_optional_string_list(payload.get("overlay_applied"))),
         )
 
 

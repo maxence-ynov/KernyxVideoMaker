@@ -35,8 +35,14 @@ from pipeline.captions import (
     DEFAULT_FALLBACK_SUBTITLE_FONT_SIZE,
 )
 from pipeline.edit_planner import EditManifest, SceneEditPlan, SFX_PROFILES, load_edit_manifest
-from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manifest, save_scene_manifest
-from pipeline.visual_manifest import VisualManifest, load_visual_manifest
+from pipeline.scene_planner import (
+    SceneManifest,
+    SceneSegment,
+    compute_overlay_role,
+    load_scene_manifest,
+    save_scene_manifest,
+)
+from pipeline.visual_manifest import SceneVisualAsset, VisualManifest, load_visual_manifest
 from schemas import VideoJob
 
 LOGGER = logging.getLogger(__name__)
@@ -180,6 +186,7 @@ CAPTION_TOKEN_RE = re.compile(
     r"\d+(?:[.,]\d+)?%?|[\w]+(?:[.'/:%+-][\w]+)*",
     flags=re.UNICODE,
 )
+SCENE_STORY_WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
 CAPTION_STOPWORDS = frozenset(
     {
         "a",
@@ -314,6 +321,49 @@ CAPTION_ACTION_TOKENS = frozenset(
 CAPTION_DURATION_UNITS = frozenset(
     {"h", "heure", "heures", "jour", "jours", "min", "minute", "minutes", "mois", "s", "sec", "seconde", "secondes"}
 )
+SCENE_STORY_STOPWORDS = frozenset(
+    {
+        "a",
+        "an",
+        "and",
+        "au",
+        "aux",
+        "avec",
+        "ce",
+        "cet",
+        "cette",
+        "dans",
+        "de",
+        "des",
+        "du",
+        "en",
+        "est",
+        "et",
+        "for",
+        "il",
+        "la",
+        "le",
+        "les",
+        "mais",
+        "on",
+        "par",
+        "pas",
+        "pour",
+        "que",
+        "qui",
+        "sur",
+        "ta",
+        "tes",
+        "the",
+        "ton",
+        "tu",
+        "un",
+        "une",
+        "vos",
+        "votre",
+    }
+)
+IMPACT_TEXT_SFX_PROFILES = frozenset({"click_ui_hard", "glitch_light", "hit_soft", "hit_strong", "whoosh_fast"})
 
 
 class AssemblerError(RuntimeError):
@@ -346,6 +396,17 @@ class SceneRenderPlan:
     overlay_style: str
     sfx_profile: str
     bgm_profile: str
+
+
+@dataclass(slots=True, frozen=True)
+class SceneStoryOverlayPlan:
+    title_text: str
+    keyword_text: str | None
+    scene_keywords: tuple[str, ...]
+    title_position: str
+    keyword_position: str
+    overlay_applied: tuple[str, ...]
+    impact_zoom: bool
 
 
 @dataclass(slots=True, frozen=True)
@@ -868,10 +929,12 @@ async def _assemble_multi_scene_video(
     caption_settings = _resolve_caption_settings(job)
     voice_word_timing = _load_voice_word_timing(job)
     caption_debug_entries: list[dict[str, object]] = []
+    scene_storyboard: list[dict[str, object]] = []
     if can_burn_per_scene_captions:
         captions_dir.mkdir(parents=True, exist_ok=True)
 
     for scene in manifest.scenes:
+        scene_visual = visual_manifest.get_scene_asset(scene.scene_id) if visual_manifest is not None else None
         asset_path = _resolve_scene_asset_path(job, scene, visual_manifest)
         output_clip_path = clips_dir / build_scene_clip_filename(scene.index)
         if output_clip_path.exists():
@@ -918,6 +981,7 @@ async def _assemble_multi_scene_video(
             render_command = _build_edited_scene_clip_command(
                 job=job,
                 scene=scene,
+                scene_visual=scene_visual,
                 plan=render_plan,
                 asset_path=asset_path,
                 caption_path=caption_path,
@@ -927,9 +991,27 @@ async def _assemble_multi_scene_video(
             render_command = _build_scene_clip_command(
                 job=job,
                 scene=scene,
+                scene_visual=scene_visual,
                 asset_path=asset_path,
                 output_path=output_clip_path,
             )
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=scene_visual, plan=render_plan)
+        scene_storyboard.append(
+            {
+                "scene_id": scene.scene_id,
+                "scene_index": scene.index,
+                "scene_title": story_plan.title_text,
+                "scene_keywords": list(story_plan.scene_keywords),
+                "visual_asset_used": (
+                    scene_visual.visual_asset_used
+                    if scene_visual is not None and scene_visual.visual_asset_used
+                    else str(asset_path)
+                ),
+                "overlay_applied": list(story_plan.overlay_applied),
+                "title_position": story_plan.title_position,
+                "keyword_position": story_plan.keyword_position,
+            }
+        )
         LOGGER.debug(
             "job=%s scene=%s clip_command=%s",
             job.job_id,
@@ -963,6 +1045,11 @@ async def _assemble_multi_scene_video(
                 clip_path=str(output_clip_path.resolve()),
                 visual_theme=scene.visual_theme,
                 visual_layout_variant=scene.visual_layout_variant,
+                overlay_role=scene.overlay_role,
+                overlay_text=scene.overlay_text,
+                subtitle_text=scene.subtitle_text,
+                visual_intensity_level=scene.visual_intensity_level,
+                primary_focus=scene.primary_focus,
             )
         )
 
@@ -1067,6 +1154,8 @@ async def _assemble_multi_scene_video(
     )
     job.set_metadata("scene_caption_debug", caption_debug_entries)
     job.set_metadata("scene_caption_debug_count", len(caption_debug_entries))
+    job.set_metadata("scene_visual_storyboard", scene_storyboard)
+    job.set_metadata("scene_visual_storyboard_count", len(scene_storyboard))
     ducking_active = inputs.voice_audio is not None and audio_plan.primary_bgm_profile is not None
     audio_mode = _resolve_audio_mix_mode(
         has_voice_audio=inputs.voice_audio is not None,
@@ -1197,6 +1286,7 @@ def _build_edited_scene_clip_command(
     *,
     job: VideoJob,
     scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
     plan: SceneRenderPlan,
     asset_path: Path,
     caption_path: Path | None,
@@ -1228,7 +1318,9 @@ def _build_edited_scene_clip_command(
         [
             "-filter_complex",
             _build_edited_scene_filter_graph(
+                job=job,
                 scene=scene,
+                scene_visual=scene_visual,
                 plan=plan,
                 caption_path=caption_path,
                 duration_seconds=duration_seconds,
@@ -1258,7 +1350,9 @@ def _build_edited_scene_clip_command(
 
 def _build_edited_scene_filter_graph(
     *,
+    job: VideoJob,
     scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
     plan: SceneRenderPlan,
     caption_path: Path | None,
     duration_seconds: float,
@@ -1274,6 +1368,16 @@ def _build_edited_scene_filter_graph(
         next_label = "overlay"
         parts.append(f"[{current_label}]{overlay_filter}[{next_label}]")
         current_label = next_label
+
+    current_label = _append_scene_story_overlay_filters(
+        job=job,
+        parts=parts,
+        input_label=current_label,
+        scene=scene,
+        scene_visual=scene_visual,
+        plan=plan,
+        duration_seconds=duration_seconds,
+    )
 
     current_label = _append_transition_filter(
         parts,
@@ -1416,6 +1520,301 @@ def _build_overlay_filter(overlay_style: str) -> str | None:
     if overlay_style == "cta_band":
         return "drawbox=x=0:y=1480:w=iw:h=300:color=black@0.38:t=fill"
     return None
+
+
+def _append_scene_story_overlay_filters(
+    *,
+    job: VideoJob,
+    parts: list[str],
+    input_label: str,
+    scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
+    plan: SceneRenderPlan | None,
+    duration_seconds: float,
+) -> str:
+    story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=scene_visual, plan=plan)
+    story_filter = _build_scene_story_filter_chain(
+        job=job,
+        story_plan=story_plan,
+    )
+    if not story_filter:
+        return input_label
+    output_label = f"story_{len(parts)}"
+    parts.append(f"[{input_label}]{story_filter}[{output_label}]")
+    if not story_plan.impact_zoom:
+        return output_label
+
+    zoom_output_label = f"story_zoom_{len(parts)}"
+    parts.append(
+        f"[{output_label}]{_build_story_impact_zoom_filter(duration_seconds=duration_seconds)}[{zoom_output_label}]"
+    )
+    return zoom_output_label
+
+
+def _build_scene_story_filter_chain(
+    *,
+    job: VideoJob,
+    story_plan: SceneStoryOverlayPlan,
+) -> str:
+    if not story_plan.title_text and not story_plan.keyword_text:
+        return ""
+
+    filters: list[str] = []
+    font_name = _escape_drawtext_value(_resolve_story_text_font_name(job))
+    title_alpha = _escape_drawtext_expr("if(lt(t,0.08),0,if(lt(t,0.34),(t-0.08)/0.26,1))")
+    keyword_alpha = _escape_drawtext_expr("if(lt(t,0.18),0,if(lt(t,0.42),(t-0.18)/0.24,1))")
+
+    if "highlight_box" in story_plan.overlay_applied and story_plan.title_text:
+        if story_plan.title_position == "center":
+            filters.extend(
+                [
+                    "drawbox=x=44:y=520:w=iw-88:h=300:color=black@0.20:t=fill",
+                    "drawbox=x=44:y=520:w=iw-88:h=300:color=white@0.08:t=6",
+                ]
+            )
+        else:
+            filters.extend(
+                [
+                    "drawbox=x=48:y=132:w=iw-96:h=250:color=black@0.18:t=fill",
+                    "drawbox=x=48:y=132:w=iw-96:h=250:color=white@0.08:t=5",
+                ]
+            )
+
+    sanitized_title_text = _sanitize_story_drawtext_text(story_plan.title_text)
+    title_lines = _wrap_scene_story_title(sanitized_title_text)
+    title_text = _escape_drawtext_text("\\n".join(title_lines))
+    title_y = _escape_drawtext_expr(
+        "(h-text_h)/2-110+if(lt(t,0.28),(0.28-t)*120,0)"
+        if story_plan.title_position == "center"
+        else "192+if(lt(t,0.28),(0.28-t)*86,0)"
+    )
+    title_font_size = "92" if story_plan.title_position == "center" else "78"
+    filters.append(
+        "drawtext="
+        f"font='{font_name}':"
+        f"text='{title_text}':"
+        f"fontsize={title_font_size}:"
+        "fontcolor=white:"
+        "borderw=4:bordercolor=black@0.95:"
+        "shadowx=0:shadowy=4:shadowcolor=black@0.85:"
+        "line_spacing=18:"
+        "x='(w-text_w)/2':"
+        f"y='{title_y}':"
+        f"alpha='{title_alpha}'"
+    )
+
+    if story_plan.keyword_text:
+        if story_plan.keyword_position == "side":
+            if "highlight_box" in story_plan.overlay_applied:
+                filters.append("drawbox=x=702:y=354:w=318:h=84:color=black@0.32:t=fill")
+            if "focus_arrow" in story_plan.overlay_applied:
+                filters.append(
+                    "drawtext="
+                    f"font='{font_name}':"
+                    "text='>>':"
+                    "fontsize=44:"
+                    "fontcolor=0xFFD24A:"
+                    "borderw=2:bordercolor=black@0.90:"
+                    "shadowx=0:shadowy=2:shadowcolor=black@0.75:"
+                    "x=650:y=372:"
+                    f"alpha='{keyword_alpha}'"
+                )
+            keyword_y = "372"
+            keyword_x = "744"
+        else:
+            if "highlight_box" in story_plan.overlay_applied:
+                filters.append("drawbox=x=60:y=1440:w=420:h=84:color=black@0.34:t=fill")
+            if "focus_arrow" in story_plan.overlay_applied:
+                filters.append(
+                    "drawtext="
+                    f"font='{font_name}':"
+                    "text='>>':"
+                    "fontsize=42:"
+                    "fontcolor=0xFFD24A:"
+                    "borderw=2:bordercolor=black@0.90:"
+                    "shadowx=0:shadowy=2:shadowcolor=black@0.75:"
+                    "x=74:y=1392:"
+                    f"alpha='{keyword_alpha}'"
+                )
+            keyword_y = "1462"
+            keyword_x = "102"
+
+        filters.append(
+            "drawtext="
+            f"font='{font_name}':"
+            f"text='{_escape_drawtext_text(_sanitize_story_drawtext_text(story_plan.keyword_text).upper())}':"
+            "fontsize=42:"
+            "fontcolor=white:"
+            "borderw=3:bordercolor=black@0.95:"
+            "shadowx=0:shadowy=3:shadowcolor=black@0.80:"
+            f"x={keyword_x}:y={keyword_y}:"
+            f"alpha='{keyword_alpha}'"
+        )
+
+    return ",".join(filters)
+
+
+def _build_scene_story_overlay_plan(
+    *,
+    scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
+    plan: SceneRenderPlan | None,
+) -> SceneStoryOverlayPlan:
+    overlay_role = scene.overlay_role or compute_overlay_role(scene)
+    title_text = (
+        scene_visual.scene_title
+        if scene_visual is not None and scene_visual.scene_title is not None
+        else _derive_scene_story_title(scene)
+    )
+    scene_keywords = (
+        scene_visual.scene_keywords
+        if scene_visual is not None and scene_visual.scene_keywords
+        else tuple(_derive_scene_story_keywords(scene))
+    )
+    keyword_text = None
+    title_position = "center" if (plan is not None and plan.pace_role == "hook") or scene.role == "hook" else "top"
+    keyword_position = (
+        "side"
+        if scene.scene_type in {"proof", "interface"} or scene.visual_asset_mode in {"dashboard", "ui", "screenshot"}
+        else "bottom"
+    )
+    has_visual_evidence = _scene_has_visual_evidence(scene, scene_visual)
+    if (
+        title_text
+        and scene.visual_intensity_level is not None
+        and scene.primary_focus == "visual_proof"
+        and has_visual_evidence
+    ):
+        title_text = ""
+
+    overlay_applied: list[str] = []
+    if title_text:
+        overlay_applied.append("title_text")
+
+    impact_zoom = (
+        bool(title_text)
+        and (
+            (plan is not None and plan.sfx_profile in IMPACT_TEXT_SFX_PROFILES)
+            or scene.role == "hook"
+            or overlay_role == "hook"
+        )
+    )
+    if impact_zoom and "impact_zoom" not in overlay_applied:
+        overlay_applied.append("impact_zoom")
+
+    return SceneStoryOverlayPlan(
+        title_text=title_text,
+        keyword_text=keyword_text,
+        scene_keywords=tuple(scene_keywords),
+        title_position=title_position,
+        keyword_position=keyword_position,
+        overlay_applied=tuple(overlay_applied),
+        impact_zoom=impact_zoom,
+    )
+
+
+def _scene_has_visual_evidence(
+    scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
+) -> bool:
+    if scene_visual is None:
+        return False
+
+    visual_mode = (scene_visual.visual_asset_mode or scene.visual_asset_mode).strip().lower()
+    if visual_mode not in {"dashboard", "workflow", "ui", "screenshot"}:
+        return False
+
+    if scene_visual.selected_by in {"explicit", "catalog_match"}:
+        return True
+    if scene_visual.selected_by in {"contextual_video", "contextual_image"}:
+        return bool(
+            scene_visual.matched_entities
+            or scene_visual.matched_tags
+            or scene_visual.matched_visual_categories
+        )
+    return False
+
+
+def _derive_scene_story_title(scene: SceneSegment) -> str:
+    if scene.visual_intensity_level is not None:
+        return scene.overlay_text or ""
+    for candidate in (scene.highlight_text, scene.title_text, scene.source_text):
+        words = _split_scene_story_words(candidate)
+        if 3 <= len(words) <= 6:
+            return " ".join(words)
+        if len(words) > 6:
+            return " ".join(words[:6])
+
+    fallback_words = _split_scene_story_words(scene.source_text or scene.title_text or scene.highlight_text)
+    if fallback_words:
+        return " ".join(fallback_words[: max(1, min(6, len(fallback_words)))])
+    return scene.scene_type.replace("_", " ").strip().title() or "Scene"
+
+
+def _derive_scene_story_keywords(scene: SceneSegment) -> list[str]:
+    raw_candidates: list[str] = []
+    raw_candidates.extend(scene.keywords)
+    raw_candidates.extend(_split_scene_story_words(scene.highlight_text))
+    raw_candidates.extend(_split_scene_story_words(scene.title_text))
+    raw_candidates.extend(_split_scene_story_words(scene.source_text))
+
+    keywords: list[str] = []
+    seen_normalized: set[str] = set()
+    for candidate in raw_candidates:
+        normalized_candidate = " ".join(candidate.split()).strip()
+        lowered_candidate = normalized_candidate.lower()
+        if not normalized_candidate:
+            continue
+        if len(lowered_candidate) <= 2 and not lowered_candidate.isdigit():
+            continue
+        if lowered_candidate in SCENE_STORY_STOPWORDS:
+            continue
+        if lowered_candidate in seen_normalized:
+            continue
+        seen_normalized.add(lowered_candidate)
+        keywords.append(normalized_candidate)
+        if len(keywords) == 3:
+            break
+    return keywords
+
+
+def _split_scene_story_words(value: str) -> list[str]:
+    if not value:
+        return []
+    return [match.strip() for match in SCENE_STORY_WORD_RE.findall(" ".join(value.split())) if match.strip()]
+
+
+def _wrap_scene_story_title(title_text: str) -> list[str]:
+    words = _split_scene_story_words(title_text)
+    if len(words) <= 3:
+        return [" ".join(words)] if words else []
+    return [" ".join(words[:3]), " ".join(words[3:6])]
+
+
+def _build_story_impact_zoom_filter(*, duration_seconds: float) -> str:
+    impact_window = min(0.22, max(0.10, duration_seconds / 4.5))
+    settle_end = min(duration_seconds, max(0.42, impact_window + 0.34))
+    settle_duration = max(0.05, settle_end - impact_window)
+    zoom_expr = (
+        f"if(lt(t,{impact_window:.3f}),"
+        f"1+0.050*(t/{impact_window:.3f}),"
+        f"if(lt(t,{settle_end:.3f}),"
+        f"1.050-0.020*((t-{impact_window:.3f})/{settle_duration:.3f}),"
+        "1.03))"
+    )
+    return _build_scale_crop_filter(zoom_expr=zoom_expr.replace(",", r"\,"))
+
+
+def _resolve_story_text_font_name(job: VideoJob) -> str:
+    for key in ("edit_caption_font_resolved", "edit_caption_font_name", "subtitle_font_resolved", "subtitle_font_name"):
+        value = job.metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return DEFAULT_SUBTITLE_FONT_NAME
+
+
+def _sanitize_story_drawtext_text(value: str) -> str:
+    return " ".join(value.replace("'", " ").replace('"', " ").split())
 
 
 def _append_transition_filter(
@@ -2418,6 +2817,7 @@ def _build_scene_clip_command(
     *,
     job: VideoJob,
     scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
     asset_path: Path,
     output_path: Path,
 ) -> list[str]:
@@ -2446,7 +2846,13 @@ def _build_scene_clip_command(
     command.extend(
         [
             "-vf",
-            _build_scene_video_filter(scene, duration_seconds=duration_seconds, source_is_image=source_is_image),
+            _build_scene_video_filter(
+                job=job,
+                scene=scene,
+                scene_visual=scene_visual,
+                duration_seconds=duration_seconds,
+                source_is_image=source_is_image,
+            ),
             "-an",
             "-c:v",
             "libx264",
@@ -2469,8 +2875,10 @@ def _build_scene_clip_command(
 
 
 def _build_scene_video_filter(
-    scene: SceneSegment,
     *,
+    job: VideoJob,
+    scene: SceneSegment,
+    scene_visual: SceneVisualAsset | None,
     duration_seconds: float,
     source_is_image: bool,
 ) -> str:
@@ -2488,13 +2896,21 @@ def _build_scene_video_filter(
             f"crop={TARGET_WIDTH}:{TARGET_HEIGHT},setsar=1,fps={TARGET_FPS}"
         )
 
+    story_filter = _build_scene_story_filter_chain(
+        job=job,
+        story_plan=_build_scene_story_overlay_plan(scene=scene, scene_visual=scene_visual, plan=None),
+    )
+    filter_chain = base_filter
+    if story_filter:
+        filter_chain = f"{filter_chain},{story_filter}"
+
     if scene.transition_effect != "fade" or scene.transition_duration_seconds <= 0:
-        return base_filter
+        return filter_chain
 
     fade_duration = _clamp(scene.transition_duration_seconds, 0.08, min(0.35, duration_seconds / 3.0))
     fade_out_start = max(0.0, duration_seconds - fade_duration)
     return (
-        f"{base_filter},"
+        f"{filter_chain},"
         f"fade=t=in:st=0:d={fade_duration:.3f},"
         f"fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f}"
     )
@@ -4686,6 +5102,28 @@ def _escape_filter_path(path: Path) -> str:
         .replace("[", "\\[")
         .replace("]", "\\]")
     )
+
+
+def _escape_drawtext_value(value: str) -> str:
+    return (
+        value.replace("\\", "\\\\")
+        .replace(":", r"\:")
+        .replace("'", r"\'")
+        .replace(",", r"\,")
+        .replace("[", r"\[")
+        .replace("]", r"\]")
+    )
+
+
+def _escape_drawtext_text(value: str) -> str:
+    return (
+        _escape_drawtext_value(value)
+        .replace("%", r"\%")
+    )
+
+
+def _escape_drawtext_expr(value: str) -> str:
+    return value.replace("\\", "\\\\").replace(",", r"\,").replace(":", r"\:")
 
 
 def _escape_ass_style(value: str) -> str:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import shutil
 import unittest
@@ -9,9 +10,10 @@ from pipeline.edit_planner import (
     SceneEditPlan,
     build_edit_manifest,
     load_edit_manifest,
+    plan_edit_step,
     save_edit_manifest,
 )
-from pipeline.scene_planner import SceneManifest, SceneSegment
+from pipeline.scene_planner import SceneManifest, SceneSegment, build_scene_manifest, save_scene_manifest
 from schemas import VideoJob
 
 
@@ -202,6 +204,85 @@ class EditPlannerTests(unittest.TestCase):
         assert loaded is not None
         self.assertEqual(job.metadata["edit_manifest_scene_count"], 1)
         self.assertEqual(loaded.scenes[0].text_style, "hook_focus")
+
+    def test_plan_edit_step_records_mobile_viewer_simulation(self) -> None:
+        job = VideoJob(
+            topic="Automation audit",
+            template="tiktok_ai",
+            account="main",
+            metadata={
+                "scene_min_duration_seconds": 0.8,
+                "script_sections": {
+                    "hook": "3 erreurs qui rendent ton automatisation inutile",
+                    "points": [
+                        "Montre le workflow sans surcharger l'ecran",
+                        "Ajoute une preuve avec 27% de gain visible",
+                        "Explique seulement l'etape critique",
+                    ],
+                    "cta": "Commente STACK pour le template",
+                },
+                "subtitle_cues": [
+                    {
+                        "index": 1,
+                        "start_seconds": 0.0,
+                        "end_seconds": 1.0,
+                        "duration_seconds": 1.0,
+                        "text": "3 erreurs qui rendent ton automatisation inutile",
+                        "word_count": 6,
+                    },
+                    {
+                        "index": 2,
+                        "start_seconds": 1.0,
+                        "end_seconds": 2.0,
+                        "duration_seconds": 1.0,
+                        "text": "Montre le workflow sans surcharger l'ecran",
+                        "word_count": 6,
+                    },
+                    {
+                        "index": 3,
+                        "start_seconds": 2.0,
+                        "end_seconds": 3.0,
+                        "duration_seconds": 1.0,
+                        "text": "Ajoute une preuve avec 27% de gain visible",
+                        "word_count": 8,
+                    },
+                    {
+                        "index": 4,
+                        "start_seconds": 3.0,
+                        "end_seconds": 4.0,
+                        "duration_seconds": 1.0,
+                        "text": "Explique seulement l'etape critique",
+                        "word_count": 4,
+                    },
+                    {
+                        "index": 5,
+                        "start_seconds": 4.0,
+                        "end_seconds": 5.0,
+                        "duration_seconds": 1.0,
+                        "text": "Commente STACK pour le template",
+                        "word_count": 5,
+                    },
+                ],
+            },
+        )
+        manifest = build_scene_manifest(job)
+        job_dir = (Path(__file__).resolve().parents[1] / "tmp" / "test_edit_planner_viewer").resolve()
+        if job_dir.exists():
+            shutil.rmtree(job_dir)
+        job_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            save_scene_manifest(job, job_dir, manifest)
+            asyncio.run(plan_edit_step(job, job_dir))
+        finally:
+            shutil.rmtree(job_dir, ignore_errors=True)
+
+        viewer_simulation = job.metadata.get("viewer_simulation")
+        self.assertIsInstance(viewer_simulation, dict)
+        assert isinstance(viewer_simulation, dict)
+        self.assertEqual(viewer_simulation["mode"], "mobile_1x")
+        self.assertEqual(viewer_simulation["scene_count"], 5)
+        self.assertEqual(viewer_simulation["overlay_scene_count"], 2)
+        self.assertTrue(bool(job.metadata.get("viewer_simulation_passed")))
 
 
 if __name__ == "__main__":

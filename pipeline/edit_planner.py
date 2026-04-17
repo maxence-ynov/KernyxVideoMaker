@@ -6,7 +6,13 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from job_paths import EDIT_MANIFEST_FILENAME, resolve_job_path
-from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manifest
+from pipeline.scene_planner import (
+    DEFAULT_OVERLAY_TARGET_RATIO,
+    SceneManifest,
+    SceneSegment,
+    compute_scene_subtitle_text,
+    load_scene_manifest,
+)
 from pipeline.visual_manifest import VisualManifest, load_visual_manifest
 from schemas import JSONValue, VideoJob
 
@@ -174,11 +180,19 @@ async def plan_edit_step(job: VideoJob, job_dir: Path) -> None:
         job.set_metadata("edit_planner_skip_reason", "scene_manifest_missing")
         return
 
+    visual_manifest = load_visual_manifest(job)
     manifest = build_edit_manifest(
         job,
         scene_manifest=scene_manifest,
-        visual_manifest=load_visual_manifest(job),
+        visual_manifest=visual_manifest,
     )
+    viewer_simulation = _simulate_mobile_viewer(
+        scene_manifest=scene_manifest,
+        edit_manifest=manifest,
+        visual_manifest=visual_manifest,
+    )
+    job.set_metadata("viewer_simulation", viewer_simulation)
+    job.set_metadata("viewer_simulation_passed", bool(viewer_simulation.get("passed")))
     save_edit_manifest(job, job_dir, manifest)
 
 
@@ -225,6 +239,85 @@ def build_edit_manifest(
         )
 
     return EditManifest(version=EDIT_MANIFEST_VERSION, scenes=scenes)
+
+
+def _simulate_mobile_viewer(
+    *,
+    scene_manifest: SceneManifest,
+    edit_manifest: EditManifest,
+    visual_manifest: VisualManifest | None,
+) -> dict[str, JSONValue]:
+    scene_reports: list[dict[str, JSONValue]] = []
+    overlay_scene_count = 0
+
+    for scene in scene_manifest.scenes:
+        scene_visual = visual_manifest.get_scene_asset(scene.scene_id) if visual_manifest is not None else None
+        subtitle_text = compute_scene_subtitle_text(scene)
+        overlay_text = scene.overlay_text or ""
+        overlay_enabled = bool(overlay_text)
+        if overlay_enabled:
+            overlay_scene_count += 1
+
+        has_visual_proof = bool(
+            scene_visual is not None
+            and (scene_visual.visual_asset_mode or scene.visual_asset_mode) in {"dashboard", "workflow", "ui", "screenshot"}
+            and scene_visual.selected_by in {"explicit", "catalog_match", "contextual_image", "contextual_video"}
+        )
+        strong_elements = 1
+        if subtitle_text:
+            strong_elements += 1
+        if overlay_enabled:
+            strong_elements += 1
+
+        comprehension_in_1_second = bool(
+            (overlay_enabled and len(overlay_text.split()) <= 4)
+            or has_visual_proof
+            or len(subtitle_text.split()) <= 3
+        )
+        readable_without_sound = bool(subtitle_text or overlay_text)
+        focus_clear = strong_elements <= 3 and not (
+            overlay_enabled and has_visual_proof and (scene.primary_focus or "") == "visual_proof"
+        )
+
+        scene_reports.append(
+            {
+                "scene_id": scene.scene_id,
+                "scene_type": scene.scene_type,
+                "visual_intensity_level": scene.visual_intensity_level or "unknown",
+                "primary_focus": scene.primary_focus or "unknown",
+                "overlay_text": overlay_text or None,
+                "overlay_role": scene.overlay_role,
+                "subtitle_text": subtitle_text or None,
+                "strong_element_count": strong_elements,
+                "comprehension_in_1_second": comprehension_in_1_second,
+                "readable_without_sound": readable_without_sound,
+                "focus_clear": focus_clear,
+            }
+        )
+
+    scene_count = len(scene_manifest.scenes)
+    overlay_ratio = round(overlay_scene_count / scene_count, 3) if scene_count else 0.0
+    max_overlay_ratio = round(max(DEFAULT_OVERLAY_TARGET_RATIO if scene_count >= 5 else 0.5, 2 / max(1, scene_count)), 3)
+    passed = bool(
+        scene_reports
+        and all(
+            bool(report["readable_without_sound"])
+            and bool(report["focus_clear"])
+            for report in scene_reports
+        )
+        and overlay_ratio <= max_overlay_ratio
+    )
+
+    return {
+        "mode": "mobile_1x",
+        "scene_count": scene_count,
+        "overlay_scene_count": overlay_scene_count,
+        "overlay_ratio": overlay_ratio,
+        "target_overlay_ratio": DEFAULT_OVERLAY_TARGET_RATIO,
+        "overlay_ratio_target_met": overlay_ratio <= max_overlay_ratio,
+        "passed": passed,
+        "scenes": scene_reports,
+    }
 
 
 def load_edit_manifest(job: VideoJob) -> EditManifest | None:

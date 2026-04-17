@@ -16,6 +16,7 @@ from job_paths import (
 from pipeline.diversity_memory import DiversityCandidate, DiversityDecision, load_diversity_memory
 from pipeline.scene_asset_selector import (
     AssetCatalog,
+    AssetCatalogEntry,
     AssetCatalogError,
     AssetSelectionContext,
     build_asset_selection_context,
@@ -52,6 +53,8 @@ SOURCE_MEDIA_PATH_KEYS = (
 )
 SCENE_ASSET_CONFIG_KEYS = ("scene_assets", "scene_asset_map", "scene_assets_by_scene")
 SCENE_ASSET_POOL_KEYS = ("scene_asset_pool", "asset_pool", "source_media_pool")
+CONTEXTUAL_VIDEO_DIRS = ("tiktok/video",)
+CONTEXTUAL_IMAGE_DIRS = ("tiktok/image", "tiktok/photo")
 DEFAULT_VISUAL_THEME = "signal"
 DEFAULT_VISUAL_ASSET_MODE = "auto"
 VISUAL_THEMES = ("signal", "midnight", "mint")
@@ -100,6 +103,24 @@ VISUAL_STOP_WORDS = {
     "way",
     "with",
 }
+SCENE_STORY_STOP_WORDS = VISUAL_STOP_WORDS.union(
+    {
+        "ce",
+        "cet",
+        "cette",
+        "est",
+        "juste",
+        "mais",
+        "plus",
+        "qui",
+        "son",
+        "ton",
+        "trop",
+        "une",
+        "votre",
+    }
+)
+CONTEXTUAL_BACKGROUND_ALL_SCENE_TYPES = ("hook", "explain", "workflow", "proof", "interface", "cta")
 TOOL_HINTS = (
     ("google sheets", "Google Sheets"),
     ("make.com", "Make"),
@@ -230,6 +251,8 @@ class SceneAssetSelectionState:
     pool_assets: list[ConfiguredSceneAsset]
     asset_catalog: AssetCatalog | None
     selection_context: AssetSelectionContext
+    background_video_catalog: AssetCatalog | None = None
+    background_image_catalog: AssetCatalog | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -438,6 +461,8 @@ async def _generate_multi_scene_visuals(
         pool_assets=_build_scene_asset_pool(job),
         asset_catalog=asset_catalog,
         selection_context=build_asset_selection_context(job),
+        background_video_catalog=_build_contextual_background_catalog(job, asset_type="video"),
+        background_image_catalog=_build_contextual_background_catalog(job, asset_type="image"),
     )
     rendered_scenes: list[SceneSegment] = []
     visual_manifest_scenes: list[SceneVisualAsset] = []
@@ -448,9 +473,9 @@ async def _generate_multi_scene_visuals(
     selected_by_counts: dict[str, int] = {}
 
     for scene in manifest.scenes:
-        resolved_asset = _resolve_scene_asset(
-            job,
+        resolved_asset = select_background_asset(
             scene,
+            job=job,
             explicit_scene_assets=explicit_scene_assets,
             selection_state=selection_state,
         )
@@ -486,6 +511,11 @@ async def _generate_multi_scene_visuals(
                 clip_path=scene.clip_path,
                 visual_theme=visual_theme,
                 visual_layout_variant=visual_layout_variant,
+                overlay_role=scene.overlay_role,
+                overlay_text=scene.overlay_text,
+                subtitle_text=scene.subtitle_text,
+                visual_intensity_level=scene.visual_intensity_level,
+                primary_focus=scene.primary_focus,
             )
             summary = {
                 "scene_id": scene.scene_id,
@@ -543,6 +573,11 @@ async def _generate_multi_scene_visuals(
                 clip_path=scene.clip_path,
                 visual_theme=spec.theme,
                 visual_layout_variant=spec.layout_variant,
+                overlay_role=scene.overlay_role,
+                overlay_text=scene.overlay_text,
+                subtitle_text=scene.subtitle_text,
+                visual_intensity_level=scene.visual_intensity_level,
+                primary_focus=scene.primary_focus,
             )
             summary = {
                 "scene_id": scene.scene_id,
@@ -566,6 +601,15 @@ async def _generate_multi_scene_visuals(
                 "duration_seconds": scene.duration_seconds,
                 "title_lines": list(spec.title_lines),
             }
+
+        story_metadata = _build_scene_story_metadata(
+            scene,
+            asset_path=asset_output_path,
+            asset_type=str(summary["asset_type"]),
+            source_kind=str(summary["source_kind"]),
+            selected_by=str(summary["selected_by"]),
+        )
+        summary.update(story_metadata)
 
         rendered_scenes.append(rendered_scene)
         visual_manifest_scenes.append(
@@ -596,6 +640,10 @@ async def _generate_multi_scene_visuals(
                 motion_effect=scene.motion_effect,
                 transition_effect=scene.transition_effect,
                 transition_duration_seconds=scene.transition_duration_seconds,
+                scene_title=str(summary["scene_title"]),
+                scene_keywords=tuple(str(item) for item in summary["scene_keywords"]),
+                visual_asset_used=str(summary["visual_asset_used"]),
+                overlay_applied=tuple(str(item) for item in summary["overlay_applied"]),
             )
         )
         visual_summaries.append(summary)
@@ -910,10 +958,10 @@ def _resolve_scene_reference(
     return default_scene
 
 
-def _resolve_scene_asset(
-    job: VideoJob,
+def select_background_asset(
     scene: SceneSegment,
     *,
+    job: VideoJob,
     explicit_scene_assets: dict[str, ConfiguredSceneAsset],
     selection_state: SceneAssetSelectionState,
 ) -> ResolvedSceneAsset | None:
@@ -934,44 +982,320 @@ def _resolve_scene_asset(
         )
 
     if selection_state.asset_catalog is not None:
-        scene_intent = build_scene_visual_intent(
+        catalog_asset = _resolve_catalog_scene_asset(
             scene,
-            selection_state.asset_catalog,
-            global_topic=job.topic,
+            job=job,
+            asset_catalog=selection_state.asset_catalog,
+            selection_context=selection_state.selection_context,
+            selected_by="catalog_match",
         )
-        try:
-            catalog_candidate = resolve_catalog_scene_asset(
-                scene_intent,
-                selection_state.asset_catalog,
-                selection_state.selection_context,
-            )
-        except AssetCatalogError as exc:
-            raise VisualGenerationError(str(exc)) from exc
-        if catalog_candidate is not None:
-            reuse_rank = register_selected_asset(
-                selection_state.selection_context,
-                catalog_candidate.entry.selection_key,
-            )
-            return ResolvedSceneAsset(
-                path=catalog_candidate.entry.path,
-                asset_type=catalog_candidate.entry.asset_type,
-                source_kind=catalog_candidate.entry.source_kind,
-                selected_by="catalog_match",
-                asset_origin_path=catalog_candidate.entry.selection_key,
-                matched_tags=catalog_candidate.matched_tags,
-                matched_entities=catalog_candidate.matched_entities,
-                matched_visual_categories=catalog_candidate.matched_visual_categories,
-                selection_score=float(catalog_candidate.score),
-                reuse_rank=reuse_rank,
-            )
+        if catalog_asset is not None:
+            return catalog_asset
 
     pooled_asset = _select_scene_asset_from_pool(selection_state)
-    if pooled_asset is None:
-        return None
-    return _build_resolved_configured_scene_asset(
-        pooled_asset,
+    if pooled_asset is not None:
+        return _build_resolved_configured_scene_asset(
+            pooled_asset,
+            selection_context=selection_state.selection_context,
+        )
+
+    contextual_video_asset = _resolve_catalog_scene_asset(
+        scene,
+        job=job,
+        asset_catalog=selection_state.background_video_catalog,
         selection_context=selection_state.selection_context,
+        selected_by="contextual_video",
     )
+    if contextual_video_asset is not None:
+        return contextual_video_asset
+
+    contextual_image_asset = _resolve_catalog_scene_asset(
+        scene,
+        job=job,
+        asset_catalog=selection_state.background_image_catalog,
+        selection_context=selection_state.selection_context,
+        selected_by="contextual_image",
+    )
+    if contextual_image_asset is not None:
+        return contextual_image_asset
+
+    return None
+
+
+def _resolve_scene_asset(
+    job: VideoJob,
+    scene: SceneSegment,
+    *,
+    explicit_scene_assets: dict[str, ConfiguredSceneAsset],
+    selection_state: SceneAssetSelectionState,
+) -> ResolvedSceneAsset | None:
+    return select_background_asset(
+        scene,
+        job=job,
+        explicit_scene_assets=explicit_scene_assets,
+        selection_state=selection_state,
+    )
+
+
+def _resolve_catalog_scene_asset(
+    scene: SceneSegment,
+    *,
+    job: VideoJob,
+    asset_catalog: AssetCatalog | None,
+    selection_context: AssetSelectionContext,
+    selected_by: str,
+) -> ResolvedSceneAsset | None:
+    if asset_catalog is None:
+        return None
+
+    scene_intent = build_scene_visual_intent(
+        scene,
+        asset_catalog,
+        global_topic=job.topic,
+    )
+    try:
+        catalog_candidate = resolve_catalog_scene_asset(
+            scene_intent,
+            asset_catalog,
+            selection_context,
+        )
+    except AssetCatalogError as exc:
+        raise VisualGenerationError(str(exc)) from exc
+    if catalog_candidate is None:
+        return None
+
+    reuse_rank = register_selected_asset(
+        selection_context,
+        catalog_candidate.entry.selection_key,
+    )
+    return ResolvedSceneAsset(
+        path=catalog_candidate.entry.path,
+        asset_type=catalog_candidate.entry.asset_type,
+        source_kind=catalog_candidate.entry.source_kind,
+        selected_by=selected_by,
+        asset_origin_path=catalog_candidate.entry.selection_key,
+        matched_tags=catalog_candidate.matched_tags,
+        matched_entities=catalog_candidate.matched_entities,
+        matched_visual_categories=catalog_candidate.matched_visual_categories,
+        selection_score=float(catalog_candidate.score),
+        reuse_rank=reuse_rank,
+    )
+
+
+def _build_contextual_background_catalog(
+    job: VideoJob,
+    *,
+    asset_type: str,
+) -> AssetCatalog | None:
+    if asset_type not in {"image", "video"}:
+        raise VisualGenerationError(f"unsupported contextual background asset_type: {asset_type}")
+
+    relative_dirs = CONTEXTUAL_VIDEO_DIRS if asset_type == "video" else CONTEXTUAL_IMAGE_DIRS
+    seen_paths: set[Path] = set()
+    entries: list[AssetCatalogEntry] = []
+    for root in _iter_contextual_background_roots(job):
+        for relative_dir in relative_dirs:
+            asset_dir = (root / relative_dir).resolve()
+            if not asset_dir.exists() or not asset_dir.is_dir():
+                continue
+            for asset_path in sorted(asset_dir.iterdir()):
+                if not asset_path.is_file():
+                    continue
+                resolved_path = asset_path.resolve()
+                if resolved_path in seen_paths:
+                    continue
+                if _infer_asset_type(resolved_path) != asset_type:
+                    continue
+                seen_paths.add(resolved_path)
+                tags = _build_contextual_background_tags(resolved_path, asset_type=asset_type)
+                categories = _derive_contextual_background_categories(tags, asset_type=asset_type)
+                entries.append(
+                    AssetCatalogEntry(
+                        path=resolved_path,
+                        asset_type=asset_type,
+                        tags=tuple(tags),
+                        entities=(),
+                        visual_categories=tuple(categories),
+                        allowed_scene_types=CONTEXTUAL_BACKGROUND_ALL_SCENE_TYPES,
+                        source_kind=f"contextual_background_{asset_type}[{len(entries) + 1}]",
+                    )
+                )
+
+    if not entries:
+        return None
+    return AssetCatalog(
+        entries=entries,
+        source_key=f"contextual_background_{asset_type}",
+    )
+
+
+def _iter_contextual_background_roots(job: VideoJob) -> list[Path]:
+    candidates: list[Path] = []
+    raw_config_path = _read_text_metadata(job, "config_path")
+    if raw_config_path is not None:
+        config_path = Path(raw_config_path).expanduser().resolve()
+        candidates.extend([config_path.parent, config_path.parent.parent])
+    candidates.append(Path.cwd().resolve())
+
+    roots: list[Path] = []
+    for candidate in candidates:
+        if candidate not in roots:
+            roots.append(candidate)
+    return roots
+
+
+def _build_contextual_background_tags(path: Path, *, asset_type: str) -> list[str]:
+    normalized_name = path.stem.replace("-", " ").replace("_", " ").lower()
+    tags = ["background", asset_type]
+    if asset_type == "video":
+        tags.extend(["motion", "attention", "concept"])
+    else:
+        tags.extend(["illustration", "concept"])
+
+    for token in WORD_RE.findall(normalized_name):
+        normalized_token = token.lower()
+        if len(normalized_token) <= 2 or normalized_token in VISUAL_STOP_WORDS:
+            continue
+        if normalized_token not in tags:
+            tags.append(normalized_token)
+
+    tag_set = set(tags)
+    if {"dashboard", "graph", "graphs", "statistics", "analytics", "financial", "marketing", "monitoring"}.intersection(tag_set):
+        tags.extend(["dashboard", "analytics", "metrics", "proof", "result"])
+    if {"workflow", "automation", "process", "pipeline", "system", "systems", "server", "support"}.intersection(tag_set):
+        tags.extend(["workflow", "automation", "process", "system"])
+    if {"screen", "computer", "laptop", "office", "startup", "ui", "interface", "software"}.intersection(tag_set):
+        tags.extend(["ui", "software", "screen", "screenshot"])
+    if {"error", "warning", "alert", "broken", "glitch"}.intersection(tag_set):
+        tags.extend(["error", "glitch", "attention"])
+    return _unique_strings(tags)
+
+
+def _derive_contextual_background_categories(
+    tags: list[str],
+    *,
+    asset_type: str,
+) -> list[str]:
+    categories = ["background", "concept"]
+    if asset_type == "video":
+        categories.extend(["motion", "attention"])
+    else:
+        categories.extend(["illustration"])
+
+    tag_set = set(tags)
+    if {"dashboard", "analytics", "metrics", "proof", "result"}.intersection(tag_set):
+        categories.extend(["dashboard", "analytics", "metrics", "proof", "result"])
+    if {"workflow", "automation", "process", "system"}.intersection(tag_set):
+        categories.extend(["workflow", "automation", "process", "system"])
+    if {"ui", "software", "screen", "screenshot"}.intersection(tag_set):
+        categories.extend(["ui", "software", "screen", "screenshot"])
+    if {"error", "glitch"}.intersection(tag_set):
+        categories.extend(["error", "glitch"])
+    if {"business", "company", "employees", "planning", "strategy"}.intersection(tag_set):
+        categories.extend(["business", "workflow", "dashboard"])
+    return _unique_strings(categories)
+
+
+def _build_scene_story_metadata(
+    scene: SceneSegment,
+    *,
+    asset_path: Path,
+    asset_type: str,
+    source_kind: str,
+    selected_by: str,
+) -> dict[str, object]:
+    scene_title = _derive_scene_title(scene)
+    scene_keywords = _derive_scene_keywords(scene)
+    overlay_applied = _derive_scene_overlay_applied(
+        scene,
+        asset_type=asset_type,
+        selected_by=selected_by,
+        scene_title=scene_title,
+        scene_keywords=scene_keywords,
+    )
+    return {
+        "scene_title": scene_title,
+        "scene_keywords": scene_keywords,
+        "visual_asset_used": str(asset_path),
+        "overlay_applied": overlay_applied,
+        "background_source_kind": source_kind,
+    }
+
+
+def _derive_scene_title(scene: SceneSegment) -> str:
+    if scene.visual_intensity_level is not None:
+        return scene.overlay_text or ""
+    for candidate in (scene.highlight_text, scene.title_text, scene.source_text):
+        words = _split_story_words(candidate)
+        if 3 <= len(words) <= 6:
+            return " ".join(words)
+        if len(words) > 6:
+            return " ".join(words[:6])
+
+    fallback_words = _split_story_words(scene.source_text or scene.title_text or scene.highlight_text)
+    if fallback_words:
+        return " ".join(fallback_words[: max(1, min(6, len(fallback_words)))])
+    return scene.scene_type.replace("_", " ").strip().title() or "Scene"
+
+
+def _derive_scene_keywords(scene: SceneSegment) -> list[str]:
+    raw_candidates: list[str] = []
+    raw_candidates.extend(scene.keywords)
+    raw_candidates.extend(_split_story_words(scene.highlight_text))
+    raw_candidates.extend(_split_story_words(scene.title_text))
+    raw_candidates.extend(_split_story_words(scene.source_text))
+
+    keywords: list[str] = []
+    seen_normalized: set[str] = set()
+    for candidate in raw_candidates:
+        normalized_candidate = candidate.strip()
+        lowered_candidate = normalized_candidate.lower()
+        if not normalized_candidate:
+            continue
+        if len(lowered_candidate) <= 2 and not lowered_candidate.isdigit():
+            continue
+        if lowered_candidate in SCENE_STORY_STOP_WORDS:
+            continue
+        if lowered_candidate in seen_normalized:
+            continue
+        seen_normalized.add(lowered_candidate)
+        keywords.append(normalized_candidate)
+        if len(keywords) == 3:
+            break
+    return keywords
+
+
+def _derive_scene_overlay_applied(
+    scene: SceneSegment,
+    *,
+    asset_type: str,
+    selected_by: str,
+    scene_title: str,
+    scene_keywords: list[str],
+) -> list[str]:
+    overlays: list[str] = []
+    if scene_title:
+        overlays.append("title_text")
+    if scene.role == "hook" and scene_title and (
+        selected_by == "contextual_video" or asset_type == "video" or scene.motion_effect == "zoom_in"
+    ):
+        overlays.append("impact_zoom")
+    return _unique_strings(overlays)
+
+
+def _split_story_words(value: str) -> list[str]:
+    if not value:
+        return []
+    return [match.strip() for match in WORD_RE.findall(" ".join(value.split())) if match.strip()]
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    unique_values: list[str] = []
+    for value in values:
+        normalized_value = value.strip()
+        if normalized_value and normalized_value not in unique_values:
+            unique_values.append(normalized_value)
+    return unique_values
 
 
 def _build_resolved_scene_asset(
@@ -1099,7 +1423,11 @@ def _build_scene_visual_job(job: VideoJob, scene: SceneSegment) -> VideoJob:
     metadata = dict(job.metadata)
     metadata["anti_repetition"] = {"enabled": False}
     metadata["visual_asset_mode"] = scene.visual_asset_mode
-    metadata["visual_title_text"] = scene.title_text
+    metadata["visual_title_text"] = (
+        scene.overlay_text
+        if scene.visual_intensity_level is not None
+        else scene.title_text
+    )
     metadata["visual_highlight_text"] = scene.highlight_text
     metadata["visual_keywords"] = list(scene.keywords)
     metadata["script_keywords"] = list(scene.keywords)
@@ -2880,4 +3208,4 @@ def _state_color(palette: Palette, state: str) -> tuple[int, int, int]:
     return palette.accent
 
 
-__all__ = ["VisualGenerationError", "generate_visual_step"]
+__all__ = ["VisualGenerationError", "generate_visual_step", "select_background_asset"]

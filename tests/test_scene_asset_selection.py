@@ -443,6 +443,48 @@ class SceneAssetSelectionTests(unittest.TestCase):
         self.assertEqual(intent.match_mode, "soft")
         self.assertIsNone(candidate)
 
+    def test_resolve_scene_asset_soft_mode_prioritizes_ui_proof_over_generic_stock(self) -> None:
+        catalog = AssetCatalog(
+            entries=[
+                AssetCatalogEntry(
+                    path=FALLBACK_ASSET,
+                    asset_type="image",
+                    tags=("automation", "background"),
+                    entities=(),
+                    visual_categories=("concept", "illustration"),
+                    allowed_scene_types=("interface", "workflow", "proof"),
+                    source_kind="test_catalog[1]",
+                ),
+                AssetCatalogEntry(
+                    path=AUTOMATION_ASSET,
+                    asset_type="image",
+                    tags=("automation", "software", "workspace"),
+                    entities=(),
+                    visual_categories=("ui", "software", "screenshot"),
+                    allowed_scene_types=("interface", "workflow", "proof"),
+                    source_kind="test_catalog[2]",
+                ),
+            ],
+            source_key="test_catalog",
+        )
+        scene = _build_scene(
+            scene_id="scene_ui_priority",
+            scene_type="interface",
+            source_text="Montre ton automation dans une interface logicielle",
+            title_text="Operator UI",
+            highlight_text="interface logicielle",
+            keywords=["automation", "interface", "logicielle"],
+            visual_asset_mode="ui",
+        )
+
+        intent = build_scene_visual_intent(scene, catalog)
+        candidate = resolve_scene_asset(intent, catalog, AssetSelectionContext())
+
+        self.assertEqual(intent.match_mode, "soft")
+        self.assertIsNotNone(candidate)
+        assert candidate is not None
+        self.assertEqual(candidate.entry.path, AUTOMATION_ASSET)
+
     def test_pool_selection_avoids_immediate_repetition(self) -> None:
         state = SceneAssetSelectionState(
             pool_assets=[
@@ -494,6 +536,10 @@ class SceneAssetSelectionTests(unittest.TestCase):
             motion_effect="zoom_in",
             transition_effect="fade",
             transition_duration_seconds=0.2,
+            scene_title="Tu perds des leads",
+            scene_keywords=("leads", "automation"),
+            visual_asset_used="storage/assets/scene_04.ppm",
+            overlay_applied=("title_text", "keyword_text", "highlight_box"),
         )
 
         restored = SceneVisualAsset.from_mapping(original.to_metadata())
@@ -504,6 +550,10 @@ class SceneAssetSelectionTests(unittest.TestCase):
         self.assertEqual(restored.matched_visual_categories, ("animal", "wildlife"))
         self.assertEqual(restored.selection_score, 78.0)
         self.assertEqual(restored.reuse_rank, 1)
+        self.assertEqual(restored.scene_title, "Tu perds des leads")
+        self.assertEqual(restored.scene_keywords, ("leads", "automation"))
+        self.assertEqual(restored.visual_asset_used, "storage/assets/scene_04.ppm")
+        self.assertEqual(restored.overlay_applied, ("title_text", "keyword_text", "highlight_box"))
 
     def test_scene_asset_list_targets_zero_based_first_scene(self) -> None:
         manifest = SceneManifest(
@@ -635,6 +685,163 @@ class SceneAssetSelectionTests(unittest.TestCase):
                 all(str(item.get("source_kind", "")).startswith("implicit_automation_catalog[") for item in visual_assets)
             )
             self.assertTrue(all(Path(str(item["asset_path"])).exists() for item in visual_assets))
+            self.assertTrue(all(isinstance(item.get("scene_title"), str) and item["scene_title"] for item in visual_assets))
+            self.assertTrue(all(isinstance(item.get("scene_keywords"), list) and item["scene_keywords"] for item in visual_assets))
+            self.assertTrue(all(isinstance(item.get("visual_asset_used"), str) and item["visual_asset_used"] for item in visual_assets))
+            self.assertTrue(all(isinstance(item.get("overlay_applied"), list) and item["overlay_applied"] for item in visual_assets))
+
+    def test_contextual_background_selection_prefers_matching_video_before_generation(self) -> None:
+        manifest = SceneManifest(
+            version="multi_scene_v2",
+            strategy="test",
+            total_duration_seconds=2.0,
+            primary_visual_asset_mode="screenshot",
+            scenes=[
+                SceneSegment(
+                    scene_id="scene_01",
+                    index=0,
+                    role="hook",
+                    scene_type="hook",
+                    source_text="Ton automation bug bloque tout",
+                    title_text="Automation",
+                    highlight_text="Ton automation bug",
+                    keywords=["automation", "bug", "workflow"],
+                    word_count=4,
+                    proof_mode="generic",
+                    visual_asset_mode="screenshot",
+                    motion_effect="zoom_in",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    duration_seconds=1.0,
+                ),
+                SceneSegment(
+                    scene_id="scene_02",
+                    index=1,
+                    role="body",
+                    scene_type="explain",
+                    source_text="Puis tu corriges le flux",
+                    title_text="Flux",
+                    highlight_text="Tu corriges le flux",
+                    keywords=["flux", "workflow"],
+                    word_count=5,
+                    proof_mode="generic",
+                    visual_asset_mode="workflow",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=1.0,
+                    end_seconds=2.0,
+                    duration_seconds=1.0,
+                ),
+            ],
+        )
+
+        with tempfile.TemporaryDirectory(prefix="contextual_video_") as temp_dir:
+            root = Path(temp_dir)
+            config_dir = root / "config"
+            video_dir = root / "tiktok" / "video"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            video_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "topics.json").write_text("{}", encoding="utf-8")
+            matching_video = video_dir / "automation-workflow-bug-background.mp4"
+            matching_video.write_text("video", encoding="utf-8")
+
+            job = VideoJob(
+                topic="Hook blocage produit",
+                template="tiktok_ai",
+                account="main",
+                metadata={"config_path": str(config_dir / "topics.json")},
+            )
+            save_scene_manifest(job, root, manifest)
+
+            asyncio.run(generate_visual_step(job, root))
+
+            visual_assets = job.metadata.get("visual_scene_assets")
+            self.assertIsInstance(visual_assets, list)
+            assert isinstance(visual_assets, list)
+            first_scene = visual_assets[0]
+            self.assertEqual(first_scene["selected_by"], "contextual_video")
+            self.assertEqual(Path(str(first_scene["asset_origin_path"])).name, matching_video.name)
+
+    def test_contextual_background_selection_falls_back_to_matching_image(self) -> None:
+        manifest = SceneManifest(
+            version="multi_scene_v2",
+            strategy="test",
+            total_duration_seconds=2.0,
+            primary_visual_asset_mode="dashboard",
+            scenes=[
+                SceneSegment(
+                    scene_id="scene_01",
+                    index=0,
+                    role="body",
+                    scene_type="proof",
+                    source_text="Le dashboard montre 27 pourcent de gain",
+                    title_text="Dashboard",
+                    highlight_text="27 pourcent de gain visible",
+                    keywords=["dashboard", "gain", "analytics"],
+                    word_count=6,
+                    proof_mode="result",
+                    visual_asset_mode="dashboard",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    duration_seconds=1.0,
+                ),
+                SceneSegment(
+                    scene_id="scene_02",
+                    index=1,
+                    role="body",
+                    scene_type="explain",
+                    source_text="Ensuite tu montres le workflow",
+                    title_text="Workflow",
+                    highlight_text="Tu montres le workflow",
+                    keywords=["workflow"],
+                    word_count=5,
+                    proof_mode="generic",
+                    visual_asset_mode="workflow",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=1.0,
+                    end_seconds=2.0,
+                    duration_seconds=1.0,
+                ),
+            ],
+        )
+
+        with tempfile.TemporaryDirectory(prefix="contextual_image_") as temp_dir:
+            root = Path(temp_dir)
+            config_dir = root / "config"
+            video_dir = root / "tiktok" / "video"
+            image_dir = root / "tiktok" / "photo"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            video_dir.mkdir(parents=True, exist_ok=True)
+            image_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "topics.json").write_text("{}", encoding="utf-8")
+            (video_dir / "generic-hook-background.mp4").write_text("video", encoding="utf-8")
+            matching_image = image_dir / "dashboard-gain-analytics-result-screen.jpg"
+            matching_image.write_text("image", encoding="utf-8")
+
+            job = VideoJob(
+                topic="Dashboard proof",
+                template="tiktok_ai",
+                account="main",
+                metadata={"config_path": str(config_dir / "topics.json")},
+            )
+            save_scene_manifest(job, root, manifest)
+
+            asyncio.run(generate_visual_step(job, root))
+
+            visual_assets = job.metadata.get("visual_scene_assets")
+            self.assertIsInstance(visual_assets, list)
+            assert isinstance(visual_assets, list)
+            first_scene = visual_assets[0]
+            self.assertEqual(first_scene["selected_by"], "contextual_image")
+            self.assertEqual(Path(str(first_scene["asset_origin_path"])).name, matching_image.name)
 
 
 if __name__ == "__main__":

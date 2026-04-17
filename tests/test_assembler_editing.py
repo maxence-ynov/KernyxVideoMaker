@@ -9,6 +9,7 @@ import unittest
 from pipeline.assembler import (
     AudioLayerSpec,
     VoiceWordTiming,
+    _build_scene_story_overlay_plan,
     assemble_video_step,
     _build_audio_layer_filter,
     SceneRenderPlan,
@@ -23,6 +24,7 @@ from pipeline.edit_planner import EditManifest, SceneEditPlan, save_edit_manifes
 from pipeline.scene_planner import SceneManifest
 from pipeline.scene_planner import SceneSegment, SubtitleCue, save_scene_manifest
 from pipeline.visual_gen import generate_visual_step
+from pipeline.visual_manifest import SceneVisualAsset
 from schemas import VideoJob
 
 TEST_AUDIO_PATH = (Path(__file__).resolve().parents[1] / "test_fr.wav").resolve()
@@ -435,6 +437,19 @@ class AssemblerEditingTests(unittest.TestCase):
     def test_build_edited_scene_clip_command_uses_filter_complex(self) -> None:
         job = VideoJob(topic="Montage", template="tiktok_ai", account="main")
         scene = _build_scene()
+        scene_visual = SceneVisualAsset(
+            scene_id=scene.scene_id,
+            scene_index=scene.index,
+            asset_path="scene_01.ppm",
+            asset_type="image",
+            source_kind="generated",
+            selected_by="generated",
+            asset_origin_path="scene_01.ppm",
+            scene_title="Ton automation bug",
+            scene_keywords=("automation", "impact"),
+            visual_asset_used="scene_01.ppm",
+            overlay_applied=("title_text", "keyword_text", "highlight_box", "focus_arrow", "impact_zoom"),
+        )
         plan = SceneRenderPlan(
             pace_role="hook",
             camera_pattern="impact_zoom",
@@ -450,6 +465,7 @@ class AssemblerEditingTests(unittest.TestCase):
         command = _build_edited_scene_clip_command(
             job=job,
             scene=scene,
+            scene_visual=scene_visual,
             plan=plan,
             asset_path=Path("scene_01.ppm"),
             caption_path=Path("scene_01.ass"),
@@ -461,6 +477,68 @@ class AssemblerEditingTests(unittest.TestCase):
         self.assertIn("gblur=sigma=18", serialized)
         self.assertIn("fade=t=in:st=0:d=0.080:color=white", serialized)
         self.assertIn("subtitles='scene_01.ass'", serialized)
+        self.assertIn("drawtext=", serialized)
+        self.assertIn("text='Ton automation bug'", serialized)
+
+    def test_scene_story_overlay_plan_prefers_visual_proof_when_asset_is_credible(self) -> None:
+        scene = SceneSegment(
+            scene_id="scene_proof",
+            index=1,
+            role="body",
+            scene_type="proof",
+            source_text="La preuve montre 27% de gain concret",
+            title_text="Proof",
+            highlight_text="27% de gain concret",
+            keywords=["preuve", "gain", "analytics"],
+            word_count=6,
+            proof_mode="result",
+            visual_asset_mode="dashboard",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=2.2,
+            duration_seconds=2.2,
+            overlay_role="proof",
+            overlay_text="27% de gain",
+            subtitle_text="La preuve montre 27% de gain concret",
+            visual_intensity_level="high",
+            primary_focus="visual_proof",
+        )
+        scene_visual = SceneVisualAsset(
+            scene_id=scene.scene_id,
+            scene_index=scene.index,
+            asset_path="scene_proof.ppm",
+            asset_type="image",
+            source_kind="catalog",
+            selected_by="catalog_match",
+            asset_origin_path="scene_proof.ppm",
+            visual_asset_mode="dashboard",
+            scene_title="27% de gain",
+            scene_keywords=("analytics", "gain"),
+            visual_asset_used="scene_proof.ppm",
+            overlay_applied=("title_text",),
+        )
+        plan = SceneRenderPlan(
+            pace_role="proof",
+            camera_pattern="hold_static",
+            camera_intensity="low",
+            transition_in="cut",
+            transition_out="cut",
+            text_style="proof_clean",
+            overlay_style="proof_frame",
+            sfx_profile="click_ui_soft",
+            bgm_profile="business_clean",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(
+            scene=scene,
+            scene_visual=scene_visual,
+            plan=plan,
+        )
+
+        self.assertEqual(story_plan.title_text, "")
+        self.assertEqual(story_plan.overlay_applied, ())
 
     def test_build_mux_command_with_audio_layers_switches_to_filter_complex(self) -> None:
         job = VideoJob(topic="Montage", template="tiktok_ai", account="main")
@@ -687,6 +765,12 @@ class AssemblerEditingTests(unittest.TestCase):
             self.assertTrue(job.metadata["sfx_recent_files"])
             self.assertTrue(job.metadata["sfx_timing_mode"])
             self.assertTrue(job.metadata["sfx_gain_strategy"])
+            self.assertTrue(job.metadata["scene_visual_storyboard"])
+            self.assertEqual(job.metadata["scene_visual_storyboard_count"], 2)
+            storyboard = job.metadata["scene_visual_storyboard"]
+            assert isinstance(storyboard, list)
+            self.assertIn("scene_title", storyboard[0])
+            self.assertIn("overlay_applied", storyboard[0])
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg and ffprobe are required")
     def test_assemble_video_step_keeps_render_valid_when_sfx_assets_are_missing(self) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
+from difflib import SequenceMatcher
 import json
 import math
 from pathlib import Path
@@ -17,7 +18,20 @@ DEFAULT_AUDIO_FALLBACK_SECONDS = 12.0
 DEFAULT_SCENE_MIN_DURATION_SECONDS = 1.1
 DEFAULT_SCENE_MAX_DURATION_SECONDS = 6.0
 DEFAULT_SCENE_MAX_CUES = 4
+DEFAULT_OVERLAY_SIMILARITY_THRESHOLD = 0.60
+DEFAULT_OVERLAY_TARGET_RATIO = 0.40
+DEFAULT_OVERLAY_MAX_WORDS = 6
 WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
+OVERLAY_TOKEN_RE = re.compile(r"\d+(?:[.,]\d+)?%?|[\w'-]+", flags=re.UNICODE)
+PROOF_PHRASE_RE = re.compile(
+    r"\d+(?:[.,]\d+)?(?:\s?(?:%|x|k|m|ms|s|min|mn|h|j))?(?:\s+[A-Za-zÀ-ÿ0-9%+-]+){0,2}",
+    flags=re.IGNORECASE,
+)
+STRUCTURE_STEP_RE = re.compile(r"\b(?:step|etape)\s*\d+\b", flags=re.IGNORECASE)
+STRUCTURE_COUNT_RE = re.compile(
+    r"\b\d+\s+(?:erreur|erreurs|mistake|mistakes|etape|etapes|step|steps|cause|causes)\b",
+    flags=re.IGNORECASE,
+)
 SRT_TIMESTAMP_RE = re.compile(
     r"(?P<hours>\d{2}):(?P<minutes>\d{2}):(?P<seconds>\d{2}),(?P<milliseconds>\d{3})"
 )
@@ -81,6 +95,68 @@ PROOF_KEYWORDS = (
     "minute",
     "minutes",
 )
+OVERLAY_STOP_WORDS = frozenset(
+    {
+        "a",
+        "an",
+        "au",
+        "aux",
+        "avec",
+        "ce",
+        "ces",
+        "comment",
+        "dans",
+        "de",
+        "des",
+        "du",
+        "en",
+        "et",
+        "for",
+        "il",
+        "la",
+        "le",
+        "les",
+        "mais",
+        "ne",
+        "pas",
+        "pour",
+        "que",
+        "qui",
+        "sur",
+        "the",
+        "this",
+        "ton",
+        "tu",
+        "un",
+        "une",
+        "your",
+    }
+)
+OVERLAY_LEADING_KEEP_WORDS = frozenset({"comment", "pourquoi", "stop"})
+OVERLAY_WEAK_KEYWORDS = frozenset(
+    {
+        "automation",
+        "automatisation",
+        "business",
+        "content",
+        "creator",
+        "dashboard",
+        "erreur",
+        "hook",
+        "idea",
+        "idee",
+        "proof",
+        "result",
+        "resultat",
+        "scene",
+        "system",
+        "systeme",
+        "ui",
+        "video",
+        "workflow",
+    }
+)
+OVERLAY_ACTION_WORDS = frozenset({"abonne", "abonne-toi", "check", "commente", "copie", "save", "teste"})
 
 
 class ScenePlanningError(RuntimeError):
@@ -164,6 +240,11 @@ class SceneSegment:
     clip_path: str | None = None
     visual_theme: str | None = None
     visual_layout_variant: str | None = None
+    overlay_role: str | None = None
+    overlay_text: str | None = None
+    subtitle_text: str | None = None
+    visual_intensity_level: str | None = None
+    primary_focus: str | None = None
 
     def to_metadata(self) -> dict[str, JSONValue]:
         return {
@@ -191,6 +272,11 @@ class SceneSegment:
             "clip_path": self.clip_path,
             "visual_theme": self.visual_theme,
             "visual_layout_variant": self.visual_layout_variant,
+            "overlay_role": self.overlay_role,
+            "overlay_text": self.overlay_text,
+            "subtitle_text": self.subtitle_text,
+            "visual_intensity_level": self.visual_intensity_level,
+            "primary_focus": self.primary_focus,
         }
 
     @classmethod
@@ -234,6 +320,11 @@ class SceneSegment:
             clip_path=_read_optional_text(payload.get("clip_path")),
             visual_theme=_read_optional_text(payload.get("visual_theme")),
             visual_layout_variant=_read_optional_text(payload.get("visual_layout_variant")),
+            overlay_role=_read_optional_text(payload.get("overlay_role")),
+            overlay_text=_read_optional_text(payload.get("overlay_text")),
+            subtitle_text=_read_optional_text(payload.get("subtitle_text")),
+            visual_intensity_level=_read_optional_text(payload.get("visual_intensity_level")),
+            primary_focus=_read_optional_text(payload.get("primary_focus")),
         )
 
 
@@ -301,7 +392,7 @@ def build_scene_manifest(job: VideoJob) -> SceneManifest:
 
     draft_scenes = _split_long_scenes(job, draft_scenes)
     draft_scenes = _merge_short_scenes(job, draft_scenes)
-    finalized_scenes = _finalize_scene_sequence(job, draft_scenes)
+    finalized_scenes = _apply_scene_presentation_policy(_finalize_scene_sequence(job, draft_scenes))
     total_duration_seconds = _resolve_manifest_duration(job, finalized_scenes, subtitle_cues)
     primary_visual_asset_mode = _resolve_primary_visual_asset_mode(finalized_scenes)
     return SceneManifest(
@@ -801,6 +892,56 @@ def _finalize_scene_sequence(job: VideoJob, scenes: list[SceneSegment]) -> list[
     return finalized
 
 
+def _apply_scene_presentation_policy(scenes: list[SceneSegment]) -> list[SceneSegment]:
+    prepared_scenes: list[SceneSegment] = []
+    overlay_candidates: list[tuple[int, int]] = []
+
+    for index, scene in enumerate(scenes):
+        subtitle_text = compute_scene_subtitle_text(scene)
+        overlay_role = compute_overlay_role(scene)
+        overlay_text = _resolve_overlay_text(scene, overlay_role=overlay_role, subtitle_text=subtitle_text)
+        visual_intensity_level = _resolve_visual_intensity_level(scene, overlay_text=overlay_text)
+        primary_focus = _resolve_primary_focus(scene, overlay_text=overlay_text)
+        prepared_scene = replace(
+            scene,
+            subtitle_text=subtitle_text or None,
+            overlay_role=overlay_role,
+            overlay_text=overlay_text,
+            visual_intensity_level=visual_intensity_level,
+            primary_focus=primary_focus,
+        )
+        prepared_scenes.append(prepared_scene)
+        if overlay_text:
+            overlay_candidates.append((index, _overlay_scene_priority(prepared_scene)))
+
+    if not overlay_candidates:
+        return prepared_scenes
+
+    overlay_budget = _resolve_overlay_scene_budget(len(prepared_scenes))
+    retained_overlay_indexes = {
+        index
+        for index, _priority in sorted(
+            overlay_candidates,
+            key=lambda item: (-item[1], item[0]),
+        )[:overlay_budget]
+    }
+
+    finalized_scenes: list[SceneSegment] = []
+    for index, scene in enumerate(prepared_scenes):
+        if index in retained_overlay_indexes or not scene.overlay_text:
+            finalized_scenes.append(scene)
+            continue
+        finalized_scenes.append(
+            replace(
+                scene,
+                overlay_text=None,
+                primary_focus=_resolve_primary_focus(scene, overlay_text=None),
+                visual_intensity_level=_resolve_visual_intensity_level(scene, overlay_text=None),
+            )
+        )
+    return finalized_scenes
+
+
 def _resolve_manifest_duration(
     job: VideoJob,
     scenes: list[SceneSegment],
@@ -809,6 +950,14 @@ def _resolve_manifest_duration(
     if scenes:
         return round(scenes[-1].end_seconds, 3)
     return _resolve_total_duration_seconds(job, subtitle_cues)
+
+
+def compute_scene_subtitle_text(scene: SceneSegment) -> str:
+    if scene.subtitle_text is not None:
+        return scene.subtitle_text
+    if scene.cue_timeline:
+        return " ".join(cue.text.strip() for cue in scene.cue_timeline if cue.text.strip()).strip()
+    return " ".join(scene.source_text.split()).strip()
 
 
 def _read_script_text(job: VideoJob) -> str:
@@ -842,6 +991,23 @@ def _resolve_total_duration_seconds(job: VideoJob, subtitle_cues: list[SubtitleC
             if parsed > 0:
                 return round(parsed, 3)
     return DEFAULT_AUDIO_FALLBACK_SECONDS
+
+
+def compute_overlay_role(scene: SceneSegment) -> str | None:
+    source_text = " ".join((scene.source_text or scene.highlight_text or scene.title_text).split()).lower()
+    if STRUCTURE_STEP_RE.search(source_text) or STRUCTURE_COUNT_RE.search(source_text):
+        return "structure"
+    if "avant apres" in source_text or "avant/apres" in source_text:
+        return "structure"
+    if scene.role == "hook" or scene.scene_type == "hook":
+        return "hook"
+    if scene.scene_type == "proof":
+        return "proof"
+    if scene.role == "cta" or scene.scene_type == "cta":
+        return "keyword"
+    if scene.scene_type in {"workflow", "interface"} and _select_overlay_keyword(scene) is not None:
+        return "keyword"
+    return None
 
 
 def _classify_scene_type(job: VideoJob, *, role: str, text: str) -> str:
@@ -903,6 +1069,297 @@ def _resolve_scene_visual_asset_mode(
     if role == "hook":
         return "dashboard" if "dashboard" in lowered_text else "screenshot"
     return "ui"
+
+
+def _resolve_overlay_text(
+    scene: SceneSegment,
+    *,
+    overlay_role: str | None,
+    subtitle_text: str,
+) -> str | None:
+    if not overlay_role:
+        return None
+
+    role_builders = {
+        "hook": _build_hook_overlay_text,
+        "keyword": _build_keyword_overlay_text,
+        "proof": _build_proof_overlay_text,
+        "structure": _build_structure_overlay_text,
+    }
+    builder = role_builders.get(overlay_role)
+    overlay_text = builder(scene) if builder is not None else None
+    if not overlay_text:
+        return None
+
+    if _compute_text_similarity(overlay_text, subtitle_text) > DEFAULT_OVERLAY_SIMILARITY_THRESHOLD:
+        overlay_text = _rewrite_overlay_text(scene, preferred_mode="hook_or_keyword")
+
+    if overlay_text and _compute_text_similarity(overlay_text, subtitle_text) > DEFAULT_OVERLAY_SIMILARITY_THRESHOLD:
+        overlay_text = None
+
+    return overlay_text
+
+
+def _rewrite_overlay_text(scene: SceneSegment, *, preferred_mode: str) -> str | None:
+    if preferred_mode != "hook_or_keyword":
+        return None
+    for candidate in (
+        _build_keyword_overlay_text(scene),
+        _build_hook_overlay_text(scene),
+        _build_structure_overlay_text(scene),
+    ):
+        if candidate:
+            return candidate
+    return None
+
+
+def _build_hook_overlay_text(scene: SceneSegment) -> str | None:
+    for candidate in (
+        scene.highlight_text,
+        scene.title_text,
+        _extract_first_clause(scene.source_text),
+        scene.source_text,
+    ):
+        compact = _compact_overlay_text(candidate)
+        if compact:
+            return compact
+    return _build_keyword_overlay_text(scene)
+
+
+def _build_keyword_overlay_text(scene: SceneSegment) -> str | None:
+    keyword = _select_overlay_keyword(scene)
+    if keyword:
+        return _sanitize_overlay_text(keyword)
+    return None
+
+
+def _build_proof_overlay_text(scene: SceneSegment) -> str | None:
+    for candidate in (
+        scene.highlight_text,
+        compute_scene_subtitle_text(scene),
+        scene.source_text,
+        scene.title_text,
+    ):
+        proof_phrase = _extract_proof_phrase(candidate)
+        if proof_phrase:
+            return proof_phrase
+
+    keyword = _select_overlay_keyword(scene)
+    if keyword:
+        return _sanitize_overlay_text(keyword)
+    return None
+
+
+def _build_structure_overlay_text(scene: SceneSegment) -> str | None:
+    for candidate in (scene.highlight_text, scene.title_text, scene.source_text):
+        structure_phrase = _extract_structure_phrase(candidate)
+        if structure_phrase:
+            return structure_phrase
+    return _build_keyword_overlay_text(scene)
+
+
+def _select_overlay_keyword(scene: SceneSegment) -> str | None:
+    raw_candidates: list[str] = []
+    raw_candidates.extend(scene.keywords)
+    raw_candidates.extend(_extract_overlay_tokens(scene.highlight_text))
+    raw_candidates.extend(_extract_overlay_tokens(scene.title_text))
+    raw_candidates.extend(_extract_overlay_tokens(scene.source_text))
+
+    chosen_tokens: list[str] = []
+    seen_normalized: set[str] = set()
+    for candidate in raw_candidates:
+        normalized = _normalize_overlay_token(candidate)
+        if not normalized or normalized in seen_normalized:
+            continue
+        seen_normalized.add(normalized)
+        if normalized in OVERLAY_STOP_WORDS or normalized in OVERLAY_WEAK_KEYWORDS:
+            continue
+        chosen_tokens.append(candidate)
+        if len(chosen_tokens) == 2:
+            break
+
+    if not chosen_tokens:
+        for candidate in raw_candidates:
+            normalized = _normalize_overlay_token(candidate)
+            if normalized and normalized not in OVERLAY_STOP_WORDS:
+                chosen_tokens.append(candidate)
+                break
+
+    if not chosen_tokens:
+        return None
+    return _sanitize_overlay_text(" ".join(chosen_tokens[:2]))
+
+
+def _extract_first_clause(text: str) -> str:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return ""
+    for separator in (".", "!", "?", ";", ":", ","):
+        if separator in normalized:
+            return normalized.split(separator, 1)[0].strip()
+    return normalized
+
+
+def _extract_proof_phrase(text: str) -> str | None:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return None
+    for match in PROOF_PHRASE_RE.finditer(normalized):
+        phrase = _sanitize_overlay_text(match.group(0))
+        if phrase:
+            return phrase
+    return None
+
+
+def _extract_structure_phrase(text: str) -> str | None:
+    normalized = " ".join(text.split()).strip()
+    if not normalized:
+        return None
+
+    for pattern in (STRUCTURE_STEP_RE, STRUCTURE_COUNT_RE):
+        match = pattern.search(normalized)
+        if match is not None:
+            return _sanitize_overlay_text(match.group(0))
+
+    lowered = normalized.lower()
+    if "avant" in lowered and "apres" in lowered:
+        return "Avant Apres"
+    if "erreur" in lowered or "mistake" in lowered:
+        return "Erreur critique"
+    if "checklist" in lowered:
+        return "Checklist"
+    return None
+
+
+def _compact_overlay_text(text: str) -> str | None:
+    tokens = _extract_overlay_tokens(text)
+    if not tokens:
+        return None
+
+    compact_tokens: list[str] = []
+    for index, token in enumerate(tokens):
+        normalized = _normalize_overlay_token(token)
+        if not normalized:
+            continue
+        if index == 0 and normalized in OVERLAY_LEADING_KEEP_WORDS:
+            compact_tokens.append(token)
+            continue
+        if normalized in OVERLAY_STOP_WORDS:
+            continue
+        compact_tokens.append(token)
+        if len(compact_tokens) == DEFAULT_OVERLAY_MAX_WORDS:
+            break
+
+    if not compact_tokens:
+        compact_tokens = tokens[:DEFAULT_OVERLAY_MAX_WORDS]
+
+    return _sanitize_overlay_text(" ".join(compact_tokens))
+
+
+def _sanitize_overlay_text(text: str) -> str | None:
+    normalized = " ".join(text.replace("/", " ").replace(">", " > ").split()).strip()
+    if not normalized:
+        return None
+
+    cleaned_tokens: list[str] = []
+    for token in normalized.split():
+        cleaned = re.sub(r"[^\w%+><=.,-]+", "", token, flags=re.UNICODE).strip(".,;:!?")
+        if not cleaned:
+            continue
+        cleaned_tokens.append(cleaned)
+        if len(cleaned_tokens) == DEFAULT_OVERLAY_MAX_WORDS:
+            break
+
+    if not cleaned_tokens:
+        return None
+    sanitized = " ".join(cleaned_tokens).strip()
+    return sanitized or None
+
+
+def _extract_overlay_tokens(text: str) -> list[str]:
+    if not text:
+        return []
+    return [match.group(0) for match in OVERLAY_TOKEN_RE.finditer(" ".join(text.split()))]
+
+
+def _normalize_overlay_token(token: str) -> str:
+    normalized = token.lower().strip("'-")
+    normalized = re.sub(r"[^\w%+]+", "", normalized, flags=re.UNICODE)
+    return normalized
+
+
+def _compute_text_similarity(left: str, right: str) -> float:
+    normalized_left = " ".join(_normalize_overlay_token(token) for token in _extract_overlay_tokens(left))
+    normalized_right = " ".join(_normalize_overlay_token(token) for token in _extract_overlay_tokens(right))
+    normalized_left = " ".join(part for part in normalized_left.split() if part)
+    normalized_right = " ".join(part for part in normalized_right.split() if part)
+    if not normalized_left or not normalized_right:
+        return 0.0
+
+    left_tokens = set(normalized_left.split())
+    right_tokens = set(normalized_right.split())
+    overlap_ratio = len(left_tokens.intersection(right_tokens)) / max(1, max(len(left_tokens), len(right_tokens)))
+    sequence_ratio = SequenceMatcher(a=normalized_left, b=normalized_right).ratio()
+    containment_ratio = 1.0 if normalized_left in normalized_right or normalized_right in normalized_left else 0.0
+    if min(len(left_tokens), len(right_tokens)) <= 2 and max(len(left_tokens), len(right_tokens)) >= 4:
+        sequence_ratio = overlap_ratio
+        containment_ratio = overlap_ratio
+    return max(overlap_ratio, sequence_ratio, containment_ratio)
+
+
+def _resolve_visual_intensity_level(scene: SceneSegment, *, overlay_text: str | None) -> str:
+    if scene.role == "hook" or scene.scene_type == "hook":
+        return "high"
+    if scene.scene_type == "proof":
+        return "high" if overlay_text else "medium"
+    if scene.role == "cta" or scene.scene_type == "cta":
+        return "low"
+    if overlay_text and scene.scene_type in {"workflow", "interface"}:
+        return "medium"
+    return "low"
+
+
+def _resolve_primary_focus(scene: SceneSegment, *, overlay_text: str | None) -> str:
+    if overlay_text:
+        return "overlay_text"
+    if scene.scene_type in {"proof", "workflow", "interface"}:
+        return "visual_proof"
+    if compute_scene_subtitle_text(scene):
+        return "subtitles"
+    return "background"
+
+
+def _overlay_scene_priority(scene: SceneSegment) -> int:
+    priority = 0
+    if scene.role == "hook" or scene.scene_type == "hook":
+        priority += 100
+    elif scene.scene_type == "proof":
+        priority += 80
+    elif scene.role == "cta" or scene.scene_type == "cta":
+        priority += 48
+    elif scene.overlay_role == "structure":
+        priority += 42
+    elif scene.overlay_role == "keyword":
+        priority += 32
+
+    if scene.overlay_text:
+        priority += 8
+        if len(scene.overlay_text.split()) <= 4:
+            priority += 4
+        if any(character.isdigit() for character in scene.overlay_text):
+            priority += 6
+        if any(word.lower() in OVERLAY_ACTION_WORDS for word in scene.overlay_text.split()):
+            priority -= 6
+    return priority
+
+
+def _resolve_overlay_scene_budget(scene_count: int) -> int:
+    if scene_count <= 1:
+        return scene_count
+    target = max(1, math.ceil(scene_count * DEFAULT_OVERLAY_TARGET_RATIO))
+    if scene_count >= 3:
+        target = max(2, target)
+    return min(scene_count, target)
 
 
 def _build_scene_weight(role: str, scene_type: str, word_count: int) -> float:
@@ -1167,6 +1624,8 @@ __all__ = [
     "SceneSegment",
     "SubtitleCue",
     "build_scene_manifest",
+    "compute_overlay_role",
+    "compute_scene_subtitle_text",
     "load_scene_manifest",
     "plan_scenes_step",
     "save_scene_manifest",

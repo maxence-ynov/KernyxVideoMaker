@@ -37,6 +37,7 @@ AUTOMATION_TOOL_ENTITIES = (
 IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 RECENT_REUSE_WINDOW = 2
 SOFT_MATCH_MIN_SCORE = 20
+SOFT_GENERIC_MIN_SCORE = 34
 WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
 ENTITY_TOKEN_RE = re.compile(r"^[a-z]+(?:-[a-z]+)*$")
 REQUIRED_ENTITY_MIN_LENGTH = 4
@@ -311,6 +312,10 @@ VISUAL_MODE_CATEGORY_HINTS = {
     "screenshot": ("screenshot", "browser", "ui"),
 }
 FRENCH_ELISION_PREFIXES = {"c", "d", "j", "l", "m", "n", "qu", "s", "t"}
+UI_EVIDENCE_TAGS = frozenset({"app", "interface", "screen", "screenshot", "software", "tool", "ui"})
+WORKFLOW_EVIDENCE_TAGS = frozenset({"agent", "automation", "process", "system", "workflow"})
+DASHBOARD_EVIDENCE_TAGS = frozenset({"analytics", "dashboard", "data", "metrics", "proof", "result"})
+GENERIC_STOCK_TAGS = frozenset({"background", "business", "concept", "illustration", "stock"})
 
 
 class AssetCatalogError(RuntimeError):
@@ -628,10 +633,17 @@ def resolve_scene_asset(
         candidates = [
             candidate
             for candidate in candidates
-            if _has_semantic_match(candidate) and candidate.score >= SOFT_MATCH_MIN_SCORE
+            if _is_soft_scene_candidate_eligible(candidate)
         ]
         if not candidates:
             return None
+        evidence_first_candidates = [
+            candidate
+            for candidate in candidates
+            if not _is_generic_asset_entry(candidate.entry)
+        ]
+        if evidence_first_candidates:
+            candidates = evidence_first_candidates
 
     return sorted(
         candidates,
@@ -825,6 +837,11 @@ def _score_catalog_entry(
         score += 20
     if entry.allowed_scene_types and scene_intent.scene_type in entry.allowed_scene_types:
         score += 10
+    score += _score_evidence_priority(entry)
+    if _is_generic_asset_entry(entry):
+        score -= 18
+        if scene_intent.match_mode == "soft":
+            score -= 8
 
     asset_key = entry.selection_key
     reuse_rank = selection_context.current_video_usage_counts.get(asset_key, 0)
@@ -891,6 +908,52 @@ def _has_semantic_match(candidate: AssetCandidate) -> bool:
         or candidate.matched_tags
         or candidate.matched_visual_categories
     )
+
+
+def _is_soft_scene_candidate_eligible(candidate: AssetCandidate) -> bool:
+    if not _has_semantic_match(candidate):
+        return False
+    minimum_score = SOFT_GENERIC_MIN_SCORE if _is_generic_asset_entry(candidate.entry) else SOFT_MATCH_MIN_SCORE
+    return candidate.score >= minimum_score
+
+
+def _score_evidence_priority(entry: AssetCatalogEntry) -> int:
+    evidence_rank = _classify_asset_evidence_rank(entry)
+    if evidence_rank == 0:
+        return 36
+    if evidence_rank == 1:
+        return 24
+    if evidence_rank == 2:
+        return 16
+    return 0
+
+
+def _classify_asset_evidence_rank(entry: AssetCatalogEntry) -> int:
+    signal_pool = {
+        *entry.tags,
+        *entry.entities,
+        *entry.visual_categories,
+    }
+    if signal_pool.intersection(UI_EVIDENCE_TAGS):
+        return 0
+    if signal_pool.intersection(WORKFLOW_EVIDENCE_TAGS):
+        return 1
+    if signal_pool.intersection(DASHBOARD_EVIDENCE_TAGS):
+        return 2
+    return 3
+
+
+def _is_generic_asset_entry(entry: AssetCatalogEntry) -> bool:
+    if entry.entities:
+        return False
+    signal_pool = {
+        *entry.tags,
+        *entry.visual_categories,
+    }
+    evidence_tags = UI_EVIDENCE_TAGS | WORKFLOW_EVIDENCE_TAGS | DASHBOARD_EVIDENCE_TAGS
+    if signal_pool.intersection(evidence_tags):
+        return False
+    return not signal_pool or bool(signal_pool.intersection(GENERIC_STOCK_TAGS))
 
 
 def _scene_mentions_phrase(
