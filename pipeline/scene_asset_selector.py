@@ -21,6 +21,19 @@ ASSET_CATALOG_PATH_KEYS = (
     "asset_catalog_path",
     "visual_asset_catalog_path",
 )
+AUTOMATION_IMPLICIT_ASSET_DIRS = ("tiktok/photo", "tiktok/video")
+AUTOMATION_TOOL_ENTITIES = (
+    "zapier",
+    "make",
+    "n8n",
+    "notion",
+    "airtable",
+    "hubspot",
+    "slack",
+    "chatgpt",
+    "claude",
+    "openai",
+)
 IMAGE_SUFFIXES = {".bmp", ".jpeg", ".jpg", ".png", ".ppm", ".webp"}
 RECENT_REUSE_WINDOW = 2
 SOFT_MATCH_MIN_SCORE = 20
@@ -382,6 +395,62 @@ def load_asset_catalog(job: VideoJob) -> AssetCatalog | None:
     return None
 
 
+def load_implicit_automation_asset_catalog(job: VideoJob) -> AssetCatalog | None:
+    entries: list[AssetCatalogEntry] = []
+    seen_paths: set[Path] = set()
+    for root in _iter_automation_asset_roots(job):
+        for relative_dir in AUTOMATION_IMPLICIT_ASSET_DIRS:
+            asset_dir = (root / relative_dir).resolve()
+            if not asset_dir.exists() or not asset_dir.is_dir():
+                continue
+            for asset_path in sorted(asset_dir.iterdir()):
+                if not asset_path.is_file():
+                    continue
+                resolved_path = asset_path.resolve()
+                if resolved_path in seen_paths:
+                    continue
+                seen_paths.add(resolved_path)
+                asset_type = _infer_asset_type(resolved_path)
+                normalized_stem = _normalize_phrase(resolved_path.stem)
+                tags = _unique(
+                    [
+                        "automation",
+                        "business",
+                        *(_extract_terms(normalized_stem)),
+                        *_derive_implicit_automation_tags(normalized_stem, asset_type=asset_type),
+                    ]
+                )
+                entities = _unique(
+                    entity
+                    for entity in AUTOMATION_TOOL_ENTITIES
+                    if _scene_mentions_phrase(
+                        entity,
+                        scene_text=normalized_stem,
+                        scene_terms=tags,
+                    )
+                )
+                visual_categories = _derive_implicit_automation_visual_categories(
+                    asset_type=asset_type,
+                    tags=tags,
+                    entities=entities,
+                )
+                entries.append(
+                    AssetCatalogEntry(
+                        path=resolved_path,
+                        asset_type=asset_type,
+                        tags=tuple(tags),
+                        entities=tuple(entities),
+                        visual_categories=tuple(visual_categories),
+                        allowed_scene_types=("hook", "explain", "workflow", "proof", "interface"),
+                        source_kind=f"implicit_automation_catalog[{len(entries) + 1}]",
+                    )
+                )
+
+    if not entries:
+        return None
+    return AssetCatalog(entries=entries, source_key="implicit_automation_catalog")
+
+
 def build_asset_selection_context(job: VideoJob) -> AssetSelectionContext:
     historical_usage_counts: dict[str, int] = {}
     memory = load_diversity_memory(job)
@@ -608,6 +677,68 @@ def _parse_catalog_payload(
             )
         )
     return entries
+
+
+def _iter_automation_asset_roots(job: VideoJob) -> list[Path]:
+    candidates: list[Path] = []
+    raw_config_path = _read_optional_text(job.metadata.get("config_path"))
+    if raw_config_path is not None:
+        config_path = Path(raw_config_path).expanduser().resolve()
+        candidates.extend([config_path.parent, config_path.parent.parent])
+    candidates.append(Path.cwd().resolve())
+
+    roots: list[Path] = []
+    for candidate in candidates:
+        if candidate in roots:
+            continue
+        roots.append(candidate)
+    return roots
+
+
+def _derive_implicit_automation_tags(
+    normalized_stem: str,
+    *,
+    asset_type: str,
+) -> list[str]:
+    tags: list[str] = []
+    if asset_type == "video":
+        tags.extend(["workflow", "process", "system"])
+    else:
+        tags.extend(["dashboard", "ui", "software", "screenshot"])
+
+    if any(token in normalized_stem for token in ("dashboard", "graph", "graphs", "statistics", "monitoring")):
+        tags.extend(["dashboard", "analytics", "metrics", "proof"])
+    if any(token in normalized_stem for token in ("server", "systems", "support")):
+        tags.extend(["ops", "system", "monitoring"])
+    if any(token in normalized_stem for token in ("laptop", "computer", "screen", "office", "startup")):
+        tags.extend(["ui", "software", "workspace", "screen"])
+    if any(token in normalized_stem for token in ("strategy", "planning", "financial", "marketing")):
+        tags.extend(["business", "ops", "planning"])
+    return tags
+
+
+def _derive_implicit_automation_visual_categories(
+    *,
+    asset_type: str,
+    tags: Sequence[str],
+    entities: Sequence[str],
+) -> list[str]:
+    categories: list[str] = ["automation", "business"]
+    if asset_type == "video":
+        categories.extend(["workflow", "process", "system"])
+    else:
+        categories.extend(["dashboard", "ui", "software", "screenshot"])
+
+    tag_set = set(tags)
+    if {"dashboard", "analytics", "metrics", "proof"}.intersection(tag_set):
+        categories.extend(["dashboard", "analytics", "metrics", "proof", "result"])
+    if {"ui", "software", "screen", "screenshot"}.intersection(tag_set):
+        categories.extend(["ui", "software", "screenshot", "product"])
+    if {"workflow", "process", "system", "ops"}.intersection(tag_set):
+        categories.extend(["workflow", "process", "system", "automation"])
+    if entities:
+        categories.extend(["software", "product", "ui"])
+    return _unique(categories)
 
 
 def _parse_catalog_entry(
@@ -948,6 +1079,7 @@ __all__ = [
     "build_asset_selection_context",
     "build_scene_visual_intent",
     "load_asset_catalog",
+    "load_implicit_automation_asset_catalog",
     "register_selected_asset",
     "resolve_scene_asset",
 ]

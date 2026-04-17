@@ -1,12 +1,10 @@
-# KernyxVideoMaker
+# KernyxVideoMakerr
 
 Pipeline local pour generer des videos verticales courtes avec `VideoJob` comme source de verite.
 
-## Multi-scenes V1
+## Pipeline
 
-La V1 ajoute un pipeline synchronise scene par scene pour des videos TikTok plus dynamiques.
-
-Pipeline par defaut :
+Ordre par defaut :
 
 1. `script_gen`
 2. `voice_gen`
@@ -15,120 +13,151 @@ Pipeline par defaut :
 5. `edit_planner`
 6. `assembler`
 
-## Architecture
+Le pipeline multi-scene garde des indices internes zero-based (`scene.index = 0..N-1`) et reserve le format one-based aux ids et noms de fichiers (`scene_01`, `scene_02`, ...).
 
-`VideoJob` reste l'objet central. Les etapes enrichissent progressivement `job.metadata` et les artefacts sur disque.
+## Installation
 
-Champs cles de la V1 :
+### Ubuntu
 
-- `script_sections` : hook, points, cta produits par `script_gen`
-- `edge_tts_voice` : voix TTS configurable via `VideoJob.metadata` (ex: `fr-FR-DeniseNeural`)
-- `voice_duration_seconds` : duree audio reelle issue de `voice_gen`
-- `scene_manifest` : timeline complete des scenes stockee dans `VideoJob.metadata`
-- `scene_manifest_path` : copie JSON du manifeste dans le dossier artefacts du job
-- `visual_scene_assets` : resume des assets rendus pour chaque scene
-- `edit_manifest` : decisions de montage par scene
-- `edit_manifest_path` : copie JSON du plan de montage
-- `video_structure` : `single_scene` ou `multi_scene_v1`
+Dependances systeme :
 
-## Scene Planner
+```bash
+sudo apt-get update
+sudo apt-get install -y python3 python3-venv ffmpeg fontconfig fonts-dejavu-core
+```
 
-`pipeline/scene_planner.py` segmente le script, assigne un type de scene et distribue la duree audio :
+Installation runtime :
 
-- `hook` -> scene d'accroche
-- `body` -> scene `workflow`, `proof`, `interface` ou `explain` selon le texte
-- `cta` -> scene de fermeture
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements.txt
+```
 
-Chaque scene contient :
+Installation dev + tests :
 
-- texte source
-- mots-cles
-- `visual_asset_mode`
-- motion (`zoom_in`, `pan_left`, `pan_right`, `pan_up`)
-- transition (`fade`)
-- debut, fin et duree synchronises sur la voix
+```bash
+python3 -m pip install -r requirements-dev.txt
+```
 
-## Visuals
+### Windows
 
-`pipeline/visual_gen.py` lit le manifeste et :
+Prerequis :
 
-- genere un visuel dedie par scene dans `scene_assets/`
-- ou reutilise une source media fournie si le job en contient deja une
-- conserve `source_media` pour la compatibilite en le pointant vers le premier visuel
+- Python 3.11+
+- `ffmpeg` et `ffprobe` dans le `PATH`
+- une police TrueType disponible pour les sous-titres, idealement `DejaVu Sans` ou `Arial`
 
-La logique reutilise le `visual_asset_mode` existant :
+Installation :
 
-- si `visual_asset_mode` est explicite, il est respecte
-- sinon il est choisi scene par scene a partir du type de scene
+```powershell
+py -3.11 -m venv .venv
+.venv\Scripts\Activate.ps1
+py -3.11 -m pip install --upgrade pip
+py -3.11 -m pip install -r requirements.txt
+py -3.11 -m pip install -r requirements-dev.txt
+```
 
-## Edit Planner
+## Preflight runtime
 
-`pipeline/edit_planner.py` ajoute une couche de montage template-driven sans reproduire un NLE complet.
+Le scheduler lance un preflight automatique avant la queue, sauf si `--skip-preflight` est passe.
 
-Pour chaque scene, le planner decide :
+Le preflight verifie :
 
-- `camera_pattern` + `camera_intensity`
-- `transition_in` + `transition_out`
-- `text_style`
-- `overlay_style`
-- `sfx_profile`
-- `bgm_profile`
-- `pace_role`
+- `python3`
+- `edge-tts`
+- `ffmpeg`
+- `ffprobe`
+- le rendu runtime des polices de sous-titres via FFmpeg/libass
 
-Regles par defaut :
+Commandes utiles :
 
-- `hook` : rythme plus nerveux, `hook_focus`, pattern plus agressif
-- `proof` : plus stable, `proof_clean`, `proof_frame` possible
-- `explain` : lisible, `keyword_emphasis` ou `standard_subtitles`
-- `cta` : plus calme, `cta_band` possible, peu de chaos visuel
+```bash
+python3 scheduler.py --preflight --config config/topics_multi_scene_example.json
+python3 scheduler.py --config config/topics_multi_scene_example.json --concurrency 1 --verbose
+python3 scheduler.py --config config/topics_multi_scene_example.json --skip-preflight
+```
 
-## FFmpeg
+## Tests
 
-`pipeline/assembler.py` monte la video finale en 2 temps :
+Depuis la racine du repo, `pytest` fonctionne sans `PYTHONPATH` manuel.
 
-1. rendu d'un clip par scene avec motion/camera pattern, overlays, transitions et captions par scene dans `scene_clips/`
-2. concat des clips puis mux final avec voix et sound design optionnel
+```bash
+pytest -q
+pytest -q tests/test_job_paths.py
+pytest -q tests/test_multiscene_artifact_integrity.py
+pytest -q tests/test_runtime_preflight.py
+```
 
-Compatibilite :
+## Assets automation
 
-- si `edit_manifest` est present, l'assembleur utilise la nouvelle couche de montage
-- si `edit_manifest` est absent, il retombe sur le comportement legacy
-- si aucun asset audio de `bgm` ou `sfx` n'est trouve, le rendu continue sans casser le pipeline
+Pour les jobs resolves en profil `automation`, `visual_gen` priorise les assets reels locaux avant le fallback synthetique si aucun asset explicite n'a deja ete fourni.
 
-Artefacts multi-scenes :
+Ordre de priorite :
 
-- `scene_manifest.json`
-- `scene_assets/scene_XX.ppm`
+1. `scene.asset_path`
+2. `scene_assets` explicites
+3. catalogue explicite
+4. catalogue implicite local (`tiktok/photo`, `tiktok/video`) pour l'automation
+5. pool d'assets explicite
+6. generation synthetique
+
+Le premier visuel reste aussi expose via `source_media` pour la compatibilite legacy.
+
+## Artefacts principaux
+
+- `01_script.txt`
+- `02_voice.mp3`
+- `03_subtitles.srt`
+- `04_scene_manifest.json`
+- `05_visual_manifest.json`
 - `06_edit_manifest.json`
+- `scene_assets/scene_XX.*`
 - `scene_clips/scene_XX.mp4`
-- `scenes.concat.mp4`
+- `06_scenes_concat.mp4`
+- `07_audio_mix.m4a`
 - `final.mp4`
 
-Exemple de config de profils : `config/examples/edit_profiles.example.json`
+## Exemple de run multi-scene
 
-## Exemple Concret
+Config d'exemple :
 
-Fichier d'exemple : [`config/topics_multi_scene_example.json`](/home/vboxuser/projects/KernyxVideoMaker/config/topics_multi_scene_example.json)
+- [config/topics_multi_scene_example.json](/home/vboxuser/projects/KernyxVideoMakerr/config/topics_multi_scene_example.json)
+- [config/examples/edit_profiles.example.json](/home/vboxuser/projects/KernyxVideoMakerr/config/examples/edit_profiles.example.json)
 
-Lancer :
+Run :
 
 ```bash
 python3 scheduler.py --config config/topics_multi_scene_example.json --concurrency 1 --verbose
 ```
 
-Exemple de flux pour un sujet hooks TikTok :
+## Audio SFX
 
-1. `script_gen` produit `hook + 3 points + cta`
-2. `voice_gen` cree `voice.mp3` via `edge-tts` et mesure la duree audio reelle
-3. `scene_planner` cree 5 scenes synchronisees
-4. `visual_gen` rend 5 visuels coherents
-5. `assembler` cree 5 clips, les concatene, puis ajoute voix + SRT
+Le montage multi-scene peut mixer automatiquement des SFX locaux si des assets audio sont disponibles.
 
-## Smoke Test Realise
+Conventions supportees en V1 :
 
-Validation e2e locale realisee avec succes sur un job de smoke test :
+- racine auto-detectee `tiktok/asset_son`
+- racines configurees via `metadata.edit_audio_roots`
+- mapping explicite via `metadata.edit_audio_profiles.sfx`
+- spread temporel via `metadata.edit_sfx_timing_spread_ms`
+- fenetre anti-repetition via `metadata.edit_sfx_recent_window`
 
-- `scene_count = 5`
-- `video_structure = multi_scene_v1`
-- `final.mp4` genere sans erreur
-- duree finale observee : `29.4s`
+Metadonnees de trace principales :
+
+- `sfx_enabled`
+- `sfx_strategy`
+- `sfx_timing_mode`
+- `sfx_gain_strategy`
+- `sfx_asset_count`
+- `sfx_recent_files`
+- `sfx_selection_log`
+- `sfx_events`
+- `sfx_mix_path`
+
+## Notes de prod
+
+- `VideoJob` reste la source de verite pour les artefacts et metadonnees.
+- Les polices runtime resolues sont persistantes dans `job.metadata` via `subtitle_font_requested` / `subtitle_font_resolved`.
+- Si une police demandee n'est pas disponible, le runtime tente un fallback `DejaVu Sans`, puis `Arial`, puis `sans-serif`.

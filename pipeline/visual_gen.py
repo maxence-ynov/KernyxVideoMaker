@@ -21,6 +21,7 @@ from pipeline.scene_asset_selector import (
     build_asset_selection_context,
     build_scene_visual_intent,
     load_asset_catalog,
+    load_implicit_automation_asset_catalog,
     register_selected_asset,
     resolve_scene_asset as resolve_catalog_scene_asset,
 )
@@ -428,6 +429,11 @@ async def _generate_multi_scene_visuals(
         asset_catalog = load_asset_catalog(job)
     except AssetCatalogError as exc:
         raise VisualGenerationError(str(exc)) from exc
+    if asset_catalog is None and _should_use_implicit_automation_asset_catalog(
+        job,
+        explicit_scene_assets=explicit_scene_assets,
+    ):
+        asset_catalog = load_implicit_automation_asset_catalog(job)
     selection_state = SceneAssetSelectionState(
         pool_assets=_build_scene_asset_pool(job),
         asset_catalog=asset_catalog,
@@ -737,15 +743,15 @@ def _parse_scene_asset_config(
     if isinstance(raw_value, list):
         if not raw_value:
             raise VisualGenerationError(f"scene asset config '{source_key}' must not be empty")
-        for offset, item in enumerate(raw_value, start=1):
+        for offset, item in enumerate(raw_value):
             scene = scenes_by_index.get(offset)
             if scene is None:
                 break
             configured_asset = _build_configured_scene_asset(
                 job,
                 item,
-                source_kind=f"{source_key}[{offset}]",
-                order=offset - 1,
+                source_kind=f"{source_key}[{offset + 1}]",
+                order=offset,
                 selected_by="explicit",
             )
             if configured_asset is None:
@@ -866,6 +872,20 @@ def _build_configured_scene_asset(
         selected_by=selected_by,
         asset_origin_path=str(resolved_path.resolve()),
     )
+
+
+def _should_use_implicit_automation_asset_catalog(
+    job: VideoJob,
+    *,
+    explicit_scene_assets: dict[str, ConfiguredSceneAsset],
+) -> bool:
+    if explicit_scene_assets:
+        return False
+    if any(job.metadata.get(key) is not None for key in SCENE_ASSET_POOL_KEYS):
+        return False
+    if _resolve_existing_source(job) is not None:
+        return False
+    return _resolve_visual_profile(job) == "automation"
 
 
 def _resolve_scene_reference(

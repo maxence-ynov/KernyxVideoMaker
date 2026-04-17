@@ -32,11 +32,27 @@ TEXT_STYLES = frozenset(
         "keyword_emphasis",
         "hook_focus",
         "proof_clean",
+        "explain_readable",
+        "cta_clean",
     }
 )
 OVERLAY_STYLES = frozenset({"none", "subtle_vignette", "light_glow", "proof_frame", "cta_band"})
-SFX_PROFILES = frozenset({"none", "hit_soft", "whoosh_soft"})
-BGM_PROFILES = frozenset({"none", "tension_light", "business_clean"})
+SFX_PROFILES = frozenset(
+    {
+        "none",
+        "hit_soft",
+        "hit_strong",
+        "whoosh_soft",
+        "whoosh_fast",
+        "pop_light",
+        "pop_short",
+        "click_ui_soft",
+        "click_ui_hard",
+        "riser_short",
+        "glitch_light",
+    }
+)
+BGM_PROFILES = frozenset({"none", "tension_light", "business_clean", "energy_boost"})
 PACE_ROLES = frozenset({"hook", "proof", "explain", "cta"})
 
 
@@ -310,10 +326,8 @@ def _resolve_text_style(scene: SceneSegment, *, pace_role: str) -> str:
     if pace_role == "proof":
         return "proof_clean"
     if pace_role == "cta":
-        return "standard_subtitles"
-    if scene.keywords or any(character.isdigit() for character in scene.source_text):
-        return "keyword_emphasis"
-    return "standard_subtitles"
+        return "cta_clean"
+    return "explain_readable"
 
 
 def _resolve_overlay_style(
@@ -333,13 +347,28 @@ def _resolve_overlay_style(
 
 
 def _resolve_sfx_profile(scene: SceneSegment, *, pace_role: str, index: int) -> str:
+    has_numbers = any(character.isdigit() for character in scene.source_text)
+    visual_mode = scene.visual_asset_mode.strip().lower()
+    cue_count = len(scene.cue_timeline)
+
     if pace_role == "hook":
-        return "hit_soft" if index == 0 else "whoosh_soft"
+        if index == 0:
+            return "hit_soft"
+        return "whoosh_fast" if float(scene.duration_seconds) >= 2.0 else "hit_soft"
+
     if pace_role == "proof":
-        return "hit_soft" if any(character.isdigit() for character in scene.source_text) else "none"
-    if pace_role == "cta":
+        if visual_mode in {"dashboard", "ui", "screenshot"}:
+            return "click_ui_soft"
+        if has_numbers or scene.proof_mode != "generic":
+            return "pop_light"
         return "none"
-    return "whoosh_soft" if scene.scene_type in {"workflow", "interface"} else "none"
+
+    if pace_role == "cta":
+        return "pop_short" if float(scene.duration_seconds) >= 1.6 else "none"
+
+    if float(scene.duration_seconds) >= 3.2 and (cue_count >= 2 or scene.scene_type in {"workflow", "interface"}):
+        return "whoosh_soft"
+    return "none"
 
 
 def _resolve_bgm_profile(scene: SceneSegment, *, pace_role: str) -> str:

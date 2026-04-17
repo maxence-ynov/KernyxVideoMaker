@@ -4,9 +4,11 @@ __pycache__/
 *.pyd
 .env/
 venv/
+.venv/
 tmp/storage/jobs/
 tmp/storage/artifacts/
 tmp/storage/artifacts_audit/
 tiktok/photo/
 tiktok/video/
 storage/
+/tiktok/asset_son/

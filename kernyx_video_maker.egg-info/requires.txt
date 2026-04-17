@@ -1,0 +1,4 @@
+edge-tts<8,>=6.1
+
+[dev]
+pytest<9,>=8

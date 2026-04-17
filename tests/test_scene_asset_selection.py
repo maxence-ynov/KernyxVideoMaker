@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
+import tempfile
 import unittest
 
 from pipeline.scene_asset_selector import (
@@ -13,8 +15,14 @@ from pipeline.scene_asset_selector import (
     register_selected_asset,
     resolve_scene_asset,
 )
-from pipeline.scene_planner import SceneSegment
-from pipeline.visual_gen import ConfiguredSceneAsset, SceneAssetSelectionState, _select_scene_asset_from_pool
+from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manifest, save_scene_manifest
+from pipeline.visual_gen import (
+    ConfiguredSceneAsset,
+    SceneAssetSelectionState,
+    _build_explicit_scene_asset_map,
+    _select_scene_asset_from_pool,
+    generate_visual_step,
+)
 from pipeline.visual_manifest import SceneVisualAsset
 from schemas import VideoJob
 
@@ -496,6 +504,137 @@ class SceneAssetSelectionTests(unittest.TestCase):
         self.assertEqual(restored.matched_visual_categories, ("animal", "wildlife"))
         self.assertEqual(restored.selection_score, 78.0)
         self.assertEqual(restored.reuse_rank, 1)
+
+    def test_scene_asset_list_targets_zero_based_first_scene(self) -> None:
+        manifest = SceneManifest(
+            version="multi_scene_v2",
+            strategy="test",
+            total_duration_seconds=2.0,
+            primary_visual_asset_mode="workflow",
+            scenes=[
+                SceneSegment(
+                    scene_id="scene_01",
+                    index=0,
+                    role="hook",
+                    scene_type="workflow",
+                    source_text="Workflow review",
+                    title_text="Workflow",
+                    highlight_text="review",
+                    keywords=["workflow"],
+                    word_count=2,
+                    proof_mode="generic",
+                    visual_asset_mode="workflow",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    duration_seconds=1.0,
+                ),
+                SceneSegment(
+                    scene_id="scene_02",
+                    index=1,
+                    role="body",
+                    scene_type="proof",
+                    source_text="Proof review",
+                    title_text="Proof",
+                    highlight_text="review",
+                    keywords=["proof"],
+                    word_count=2,
+                    proof_mode="generic",
+                    visual_asset_mode="dashboard",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=1.0,
+                    end_seconds=2.0,
+                    duration_seconds=1.0,
+                ),
+            ],
+        )
+        job = VideoJob(
+            topic="Automation audit",
+            template="tiktok_ai",
+            account="main",
+            metadata={
+                "scene_assets": [str(HIPPO_ASSET), str(AUTOMATION_ASSET)],
+            },
+        )
+
+        assignments = _build_explicit_scene_asset_map(job, manifest)
+
+        self.assertEqual(assignments["scene_01"].path, HIPPO_ASSET.resolve())
+        self.assertEqual(assignments["scene_02"].path, AUTOMATION_ASSET.resolve())
+
+    def test_automation_jobs_use_implicit_real_asset_catalog_before_generation(self) -> None:
+        manifest = SceneManifest(
+            version="multi_scene_v2",
+            strategy="test",
+            total_duration_seconds=2.0,
+            primary_visual_asset_mode="workflow",
+            scenes=[
+                SceneSegment(
+                    scene_id="scene_01",
+                    index=0,
+                    role="hook",
+                    scene_type="workflow",
+                    source_text="Zapier workflow review",
+                    title_text="Workflow",
+                    highlight_text="Zapier",
+                    keywords=["zapier", "workflow", "automation"],
+                    word_count=3,
+                    proof_mode="tool",
+                    visual_asset_mode="workflow",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    duration_seconds=1.0,
+                ),
+                SceneSegment(
+                    scene_id="scene_02",
+                    index=1,
+                    role="body",
+                    scene_type="interface",
+                    source_text="Operator UI review",
+                    title_text="Operator UI",
+                    highlight_text="screen",
+                    keywords=["screen", "ui", "automation"],
+                    word_count=3,
+                    proof_mode="generic",
+                    visual_asset_mode="ui",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=1.0,
+                    end_seconds=2.0,
+                    duration_seconds=1.0,
+                ),
+            ],
+        )
+
+        with tempfile.TemporaryDirectory(prefix="implicit_catalog_") as temp_dir:
+            job_dir = Path(temp_dir)
+            job = VideoJob(
+                topic="Zapier automation audit",
+                template="tiktok_ai",
+                account="main",
+            )
+            save_scene_manifest(job, job_dir, manifest)
+
+            asyncio.run(generate_visual_step(job, job_dir))
+
+            updated_manifest = load_scene_manifest(job)
+            self.assertIsNotNone(updated_manifest)
+            visual_assets = job.metadata.get("visual_scene_assets")
+            self.assertIsInstance(visual_assets, list)
+            assert isinstance(visual_assets, list)
+            self.assertTrue(all(item.get("selected_by") == "catalog_match" for item in visual_assets))
+            self.assertTrue(
+                all(str(item.get("source_kind", "")).startswith("implicit_automation_catalog[") for item in visual_assets)
+            )
+            self.assertTrue(all(Path(str(item["asset_path"])).exists() for item in visual_assets))
 
 
 if __name__ == "__main__":

@@ -69,7 +69,7 @@ class SceneVisualAsset:
             raise VisualManifestError("visual manifest scene entry is missing 'asset_path'")
         return cls(
             scene_id=str(payload.get("scene_id", "")).strip(),
-            scene_index=max(1, int(payload.get("scene_index", payload.get("index", 1)))),
+            scene_index=max(0, int(payload.get("scene_index", payload.get("index", 0)))),
             asset_path=asset_path,
             asset_type=str(payload.get("asset_type", "video")).strip() or "video",
             source_kind=str(payload.get("source_kind", "unknown")).strip() or "unknown",

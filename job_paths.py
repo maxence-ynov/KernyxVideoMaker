@@ -26,6 +26,7 @@ SCENE_ASSETS_DIRNAME = "scene_assets"
 SCENE_CLIPS_DIRNAME = "scene_clips"
 SCENE_CLIP_LIST_FILENAME = "06_scene_clips.txt"
 SCENES_CONCAT_FILENAME = "06_scenes_concat.mp4"
+AUDIO_MIX_FILENAME = "07_audio_mix.m4a"
 FINAL_VIDEO_FILENAME = "final.mp4"
 FINAL_VIDEO_RENDERING_FILENAME = "final_rendering.mp4"
 DEFAULT_TOPIC_SLUG = "video"
@@ -113,14 +114,18 @@ def build_source_media_artifact_filename(suffix: str) -> str:
 
 
 def build_scene_asset_filename(scene_index: int, suffix: str) -> str:
+    if scene_index < 0:
+        raise ValueError("scene_index must be >= 0")
     normalized_suffix = suffix.strip().lower()
     if not normalized_suffix.startswith("."):
         normalized_suffix = f".{normalized_suffix}"
-    return f"scene_{max(1, scene_index):02d}{normalized_suffix}"
+    return f"scene_{scene_index + 1:02d}{normalized_suffix}"
 
 
 def build_scene_clip_filename(scene_index: int) -> str:
-    return f"scene_{max(1, scene_index):02d}.mp4"
+    if scene_index < 0:
+        raise ValueError("scene_index must be >= 0")
+    return f"scene_{scene_index + 1:02d}.mp4"
 
 
 def resolve_job_path(job: "VideoJob", raw_value: str) -> Path:
@@ -165,6 +170,7 @@ def _normalize_datetime(value: datetime) -> datetime:
 
 
 __all__ = [
+    "AUDIO_MIX_FILENAME",
     "EDIT_MANIFEST_FILENAME",
     "FINAL_VIDEO_FILENAME",
     "FINAL_VIDEO_RENDERING_FILENAME",

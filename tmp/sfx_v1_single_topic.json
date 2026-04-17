@@ -1,0 +1,22 @@
+{
+  "defaults": {
+    "account": "tiktok_main",
+    "template": "vertical_reel_v1",
+    "metadata": {
+      "language": "fr",
+      "platform": "short_video",
+      "edge_tts_voice": "fr-FR-DeniseNeural",
+      "visual_asset_mode": "auto",
+      "scene_transition_duration_seconds": 0.22
+    }
+  },
+  "topics": [
+    {
+      "topic": "3 hooks pour stopper le scroll en moins de 2 secondes",
+      "metadata": {
+        "script_proof_mode": "result",
+        "script_proof_result": "2 secondes de retention gagnees sur la premiere phrase"
+      }
+    }
+  ]
+}

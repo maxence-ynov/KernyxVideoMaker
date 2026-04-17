@@ -95,6 +95,7 @@ class SubtitleCue:
     duration_seconds: float
     text: str
     word_count: int
+    timing_source: str = "srt_file"
 
     def to_metadata(self) -> dict[str, JSONValue]:
         return {
@@ -104,6 +105,7 @@ class SubtitleCue:
             "duration_seconds": round(self.duration_seconds, 3),
             "text": self.text,
             "word_count": self.word_count,
+            "timing_source": self.timing_source,
         }
 
     @classmethod
@@ -120,6 +122,7 @@ class SubtitleCue:
             duration_seconds=duration_seconds,
             text=text,
             word_count=word_count,
+            timing_source=str(payload.get("timing_source", "srt_file")).strip() or "srt_file",
         )
 
 
@@ -464,6 +467,7 @@ def _parse_srt_cues(content: str) -> list[SubtitleCue]:
                 duration_seconds=round(end_seconds - start_seconds, 3),
                 text=text,
                 word_count=max(1, _count_words(text)),
+                timing_source="srt_file",
             )
         )
     return cues

@@ -1,18 +1,28 @@
 {
   "edit_audio_roots": [
+    "tiktok/asset_son",
     "assets/audio",
     "config/examples/audio"
   ],
   "edit_bgm_volume": 0.18,
-  "edit_sfx_volume": 0.9,
+  "edit_sfx_volume": 0.42,
   "edit_audio_profiles": {
     "bgm": {
       "tension_light": "bgm/tension_light.mp3",
-      "business_clean": "bgm/business_clean.mp3"
+      "business_clean": "bgm/business_clean.mp3",
+      "energy_boost": "bgm/energy_boost.mp3"
     },
     "sfx": {
       "hit_soft": "sfx/hit_soft.wav",
-      "whoosh_soft": "sfx/whoosh_soft.wav"
+      "hit_strong": "sfx/hit_strong.wav",
+      "whoosh_soft": "sfx/whoosh_soft.wav",
+      "whoosh_fast": "sfx/whoosh_fast.wav",
+      "pop_light": "sfx/pop_light.wav",
+      "pop_short": "sfx/pop_short.wav",
+      "click_ui_soft": "sfx/click_ui_soft.wav",
+      "click_ui_hard": "sfx/click_ui_hard.wav",
+      "riser_short": "sfx/riser_short.wav",
+      "glitch_light": "sfx/glitch_light.wav"
     }
   }
 }

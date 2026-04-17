@@ -1,0 +1,8 @@
+Metadata-Version: 2.4
+Name: kernyx-video-maker
+Version: 0.1.0
+Summary: Local pipeline for short-form vertical video generation
+Requires-Python: >=3.11
+Requires-Dist: edge-tts<8,>=6.1
+Provides-Extra: dev
+Requires-Dist: pytest<9,>=8; extra == "dev"

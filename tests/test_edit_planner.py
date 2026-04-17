@@ -116,20 +116,25 @@ class EditPlannerTests(unittest.TestCase):
         self.assertEqual(hook.pace_role, "hook")
         self.assertEqual(hook.text_style, "hook_focus")
         self.assertEqual(hook.bgm_profile, "tension_light")
+        self.assertEqual(hook.sfx_profile, "hit_soft")
         self.assertIn(hook.camera_pattern, {"impact_zoom", "push_in_fast", "micro_shake_light"})
 
         self.assertEqual(proof.pace_role, "proof")
         self.assertEqual(proof.text_style, "proof_clean")
         self.assertEqual(proof.overlay_style, "proof_frame")
         self.assertEqual(proof.bgm_profile, "business_clean")
+        self.assertEqual(proof.sfx_profile, "click_ui_soft")
 
         self.assertEqual(explain.pace_role, "explain")
-        self.assertEqual(explain.text_style, "keyword_emphasis")
+        self.assertEqual(explain.text_style, "explain_readable")
         self.assertEqual(explain.overlay_style, "subtle_vignette")
+        self.assertEqual(explain.sfx_profile, "none")
 
         self.assertEqual(cta.pace_role, "cta")
+        self.assertEqual(cta.text_style, "cta_clean")
         self.assertEqual(cta.overlay_style, "cta_band")
         self.assertEqual(cta.transition_in, "dip_to_black_soft")
+        self.assertEqual(cta.sfx_profile, "pop_short")
 
     def test_edit_manifest_round_trip_preserves_scene_decisions(self) -> None:
         original = EditManifest(

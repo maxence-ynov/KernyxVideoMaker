@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 from typing import Any, cast
 
-from core import Orchestrator, QueueManager
+from core import Orchestrator, QueueManager, run_runtime_preflight
 from core.queue_manager import QueueRunSummary
 from schemas import JSONValue, VideoJob
 from storage import VideoJobStore
@@ -31,6 +31,16 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=2,
         help="Number of jobs processed in parallel",
+    )
+    parser.add_argument(
+        "--preflight",
+        action="store_true",
+        help="Run runtime preflight checks and exit without processing jobs",
+    )
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip automatic runtime preflight checks before starting the queue",
     )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logs")
     return parser.parse_args()
@@ -154,12 +164,16 @@ def _read_metadata(value: Any, field_name: str) -> dict[str, JSONValue]:
     return {str(key): cast(JSONValue, item) for key, item in value.items()}
 
 
-async def run_scheduler(args: argparse.Namespace) -> QueueRunSummary:
+async def run_scheduler(
+    args: argparse.Namespace,
+    *,
+    jobs: list[VideoJob] | None = None,
+) -> QueueRunSummary:
     logger = logging.getLogger(__name__)
-    jobs = load_jobs_from_config(args.config)
+    job_list = list(jobs) if jobs is not None else load_jobs_from_config(args.config)
 
     store = VideoJobStore(args.jobs_dir)
-    for job in jobs:
+    for job in job_list:
         store.save(job)
         logger.info("prepared job=%s topic=%s", job.job_id, job.topic)
 
@@ -173,7 +187,7 @@ async def run_scheduler(args: argparse.Namespace) -> QueueRunSummary:
         concurrency=args.concurrency,
         logger=logging.getLogger("core.queue_manager"),
     )
-    return await queue_manager.run(jobs)
+    return await queue_manager.run(job_list)
 
 
 def main() -> int:
@@ -181,7 +195,17 @@ def main() -> int:
     configure_logging(args.verbose)
 
     try:
-        summary = asyncio.run(run_scheduler(args))
+        jobs = load_jobs_from_config(args.config)
+        if args.preflight or not args.skip_preflight:
+            run_runtime_preflight(jobs, args.config)
+        if args.preflight:
+            logging.getLogger(__name__).info(
+                "preflight finished config=%s jobs=%s",
+                Path(args.config).resolve(),
+                len(jobs),
+            )
+            return 0
+        summary = asyncio.run(run_scheduler(args, jobs=jobs))
     except Exception:
         logging.getLogger(__name__).exception("scheduler failed")
         return 1

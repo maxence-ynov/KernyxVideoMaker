@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+from core.preflight import RuntimePreflightError, run_runtime_preflight
+from pipeline.assembler import RuntimeFontResolution
+from schemas import VideoJob
+
+
+def _which(binary_name: str) -> str | None:
+    mapping = {
+        "python3": "/usr/bin/python3",
+        "ffmpeg": "/usr/bin/ffmpeg",
+        "ffprobe": "/usr/bin/ffprobe",
+    }
+    return mapping.get(binary_name)
+
+
+class RuntimePreflightTests(unittest.TestCase):
+    def test_preflight_fails_when_edge_tts_is_missing(self) -> None:
+        with (
+            patch("core.preflight.shutil.which", side_effect=_which),
+            patch("core.preflight.importlib.util.find_spec", return_value=None),
+            patch(
+                "core.preflight.subprocess.run",
+                return_value=SimpleNamespace(
+                    returncode=0,
+                    stdout="ffmpeg version 6.1.1\n",
+                    stderr="",
+                ),
+            ),
+        ):
+            with self.assertRaises(RuntimePreflightError) as exc_info:
+                run_runtime_preflight([], "config/topics.json")
+
+        self.assertIn("edge-tts is not installed", str(exc_info.exception))
+
+    def test_preflight_fails_when_ffmpeg_or_ffprobe_is_missing(self) -> None:
+        def missing_ffmpeg(binary_name: str) -> str | None:
+            mapping = {
+                "python3": "/usr/bin/python3",
+                "ffprobe": None,
+                "ffmpeg": None,
+            }
+            return mapping.get(binary_name)
+
+        with (
+            patch("core.preflight.shutil.which", side_effect=missing_ffmpeg),
+            patch("core.preflight.importlib.util.find_spec", return_value=object()),
+        ):
+            with self.assertRaises(RuntimePreflightError) as exc_info:
+                run_runtime_preflight([], "config/topics.json")
+
+        message = str(exc_info.exception)
+        self.assertIn("ffmpeg was not found", message)
+        self.assertIn("ffprobe was not found", message)
+
+    def test_preflight_succeeds_when_font_smoke_resolves_cleanly(self) -> None:
+        job = VideoJob(topic="Hooks", template="tiktok_ai", account="main")
+        with (
+            patch("core.preflight.shutil.which", side_effect=_which),
+            patch("core.preflight.importlib.util.find_spec", return_value=object()),
+            patch(
+                "core.preflight.subprocess.run",
+                return_value=SimpleNamespace(
+                    returncode=0,
+                    stdout="ffmpeg version 6.1.1\n",
+                    stderr="",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_subtitle_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="DejaVu Sans",
+                    resolved_name="DejaVu Sans",
+                    used_fallback=False,
+                ),
+            ),
+        ):
+            results = run_runtime_preflight([job], "config/topics.json")
+
+        self.assertTrue(any(result.name == "subtitle-font" for result in results))
+        self.assertTrue(any("DejaVu Sans" in result.detail for result in results))
+
+    def test_preflight_reports_font_fallback_when_requested_font_is_missing(self) -> None:
+        job = VideoJob(
+            topic="Hooks",
+            template="tiktok_ai",
+            account="main",
+            metadata={"subtitle_font_name": "Missing Font"},
+        )
+        with (
+            patch("core.preflight.shutil.which", side_effect=_which),
+            patch("core.preflight.importlib.util.find_spec", return_value=object()),
+            patch(
+                "core.preflight.subprocess.run",
+                return_value=SimpleNamespace(
+                    returncode=0,
+                    stdout="ffmpeg version 6.1.1\n",
+                    stderr="",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_subtitle_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Missing Font",
+                    resolved_name="DejaVu Sans",
+                    used_fallback=True,
+                ),
+            ),
+        ):
+            results = run_runtime_preflight([job], "config/topics.json")
+
+        font_result = next(result for result in results if result.name == "subtitle-font")
+        self.assertIn("requested='Missing Font'", font_result.detail)
+        self.assertIn("resolved='DejaVu Sans'", font_result.detail)
+
+
+if __name__ == "__main__":
+    unittest.main()
