@@ -23,7 +23,7 @@ Dependances systeme :
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y python3 python3-venv ffmpeg fontconfig fonts-dejavu-core
+sudo apt-get install -y python3 python3-venv ffmpeg fontconfig fonts-dejavu-core fonts-noto-core
 ```
 
 Installation runtime :
@@ -47,7 +47,7 @@ Prerequis :
 
 - Python 3.11+
 - `ffmpeg` et `ffprobe` dans le `PATH`
-- une police TrueType disponible pour les sous-titres, idealement `DejaVu Sans` ou `Arial`
+- une police TrueType disponible pour les sous-titres et overlays, idealement `Noto Sans`, `Noto Sans Display`, `DejaVu Sans` ou `Arial`
 
 Installation :
 

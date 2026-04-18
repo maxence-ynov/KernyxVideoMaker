@@ -182,7 +182,10 @@ VISUAL_LAYOUT_VARIANTS = {
     "screenshot": ("browser_grid", "browser_spotlight"),
 }
 DRAWABLE_CHARACTERS = set("ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 -/")
-WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
+WORD_RE = re.compile(
+    r"\d+(?:[.,]\d+)?%?|[\w]+(?:[.'/:%+-][\w]+)*",
+    flags=re.UNICODE,
+)
 NUMBER_RE = re.compile(r"\b\d+\b")
 BITMAP_FONT = {
     " ": ("00000", "00000", "00000", "00000", "00000", "00000", "00000"),
@@ -1223,11 +1226,15 @@ def _build_scene_story_metadata(
 
 
 def _derive_scene_title(scene: SceneSegment) -> str:
+    if scene.overlay_text:
+        overlay_words = _split_story_words(scene.overlay_text)
+        if overlay_words:
+            return " ".join(overlay_words[: min(5, len(overlay_words))])
     if scene.visual_intensity_level is not None:
-        return scene.overlay_text or ""
+        return ""
     for candidate in (scene.highlight_text, scene.title_text, scene.source_text):
         words = _split_story_words(candidate)
-        if 3 <= len(words) <= 6:
+        if 2 <= len(words) <= 6:
             return " ".join(words)
         if len(words) > 6:
             return " ".join(words[:6])

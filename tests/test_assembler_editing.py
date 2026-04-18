@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+import subprocess
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from pipeline.assembler import (
     AudioLayerSpec,
     VoiceWordTiming,
     _build_scene_story_overlay_plan,
+    _build_scene_story_filter_chain,
     assemble_video_step,
     _build_audio_layer_filter,
     SceneRenderPlan,
@@ -19,6 +22,7 @@ from pipeline.assembler import (
     _resolve_caption_settings,
     compute_caption_emphasis,
     _resolve_audio_layers,
+    resolve_runtime_story_font,
 )
 from pipeline.edit_planner import EditManifest, SceneEditPlan, save_edit_manifest
 from pipeline.scene_planner import SceneManifest
@@ -474,7 +478,9 @@ class AssemblerEditingTests(unittest.TestCase):
 
         serialized = " ".join(command)
         self.assertIn("-filter_complex", command)
+        self.assertIn("format=rgba", serialized)
         self.assertIn("gblur=sigma=18", serialized)
+        self.assertIn("overlay=shortest=1:format=auto:eof_action=pass", serialized)
         self.assertIn("fade=t=in:st=0:d=0.080:color=white", serialized)
         self.assertIn("subtitles='scene_01.ass'", serialized)
         self.assertIn("drawtext=", serialized)
@@ -536,9 +542,100 @@ class AssemblerEditingTests(unittest.TestCase):
             scene_visual=scene_visual,
             plan=plan,
         )
+        filter_chain = _build_scene_story_filter_chain(job=VideoJob(topic="Proof", template="tiktok_ai", account="main"), story_plan=story_plan)
 
         self.assertEqual(story_plan.title_text, "")
-        self.assertEqual(story_plan.overlay_applied, ())
+        self.assertEqual(story_plan.keyword_text, "27% de gain")
+        self.assertEqual(story_plan.context_icon, "↗")
+        self.assertEqual(
+            story_plan.overlay_applied,
+            ("keyword_text", "highlight_box", "context_icon"),
+        )
+        self.assertIn("expansion=none", filter_chain)
+        self.assertIn(r"text='27\% de gain'", filter_chain)
+
+    def test_scene_story_filter_chain_uses_context_symbol_badge(self) -> None:
+        job = VideoJob(topic="Zapier", template="tiktok_ai", account="main")
+        scene = SceneSegment(
+            scene_id="scene_context",
+            index=0,
+            role="body",
+            scene_type="workflow",
+            source_text="Zapier te fait gagner du temps quand une erreur bloque le workflow",
+            title_text="Routine Zapier simple",
+            highlight_text="",
+            keywords=["gagner du temps", "zapier", "erreur"],
+            word_count=10,
+            proof_mode="tool",
+            visual_asset_mode="ui",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=2.4,
+            duration_seconds=2.4,
+            overlay_role="keyword",
+            subtitle_text="Zapier te fait gagner du temps quand une erreur bloque le workflow",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=None)
+        filter_chain = _build_scene_story_filter_chain(job=job, story_plan=story_plan)
+
+        self.assertEqual(story_plan.keyword_text, "gagner du temps")
+        self.assertEqual(story_plan.context_icon, "⚠")
+        self.assertIn("DejaVu Sans", filter_chain)
+        self.assertIn("expansion=none", filter_chain)
+        self.assertIn("text='⚠'", filter_chain)
+        self.assertIn("drawbox=x=674:y=332:w=360:h=98", filter_chain)
+
+    def test_scene_story_overlay_plan_prefers_short_overlay_text_for_hook_title(self) -> None:
+        scene = SceneSegment(
+            scene_id="scene_hook",
+            index=0,
+            role="hook",
+            scene_type="hook",
+            source_text="Trois erreurs rendent ton automatisation inutile",
+            title_text="3 erreurs",
+            highlight_text="automatisation inutile",
+            keywords=["erreurs", "automatisation", "inutile"],
+            word_count=6,
+            proof_mode="generic",
+            visual_asset_mode="screenshot",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=1.2,
+            duration_seconds=1.2,
+            overlay_role="structure",
+            overlay_text="3 erreurs",
+            subtitle_text="Trois erreurs rendent ton automatisation inutile",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=None)
+
+        self.assertEqual(story_plan.title_text, "3 erreurs")
+        self.assertEqual(story_plan.title_position, "center")
+        self.assertEqual(story_plan.keyword_text, None)
+
+    def test_resolve_runtime_story_font_falls_back_cleanly(self) -> None:
+        job = VideoJob(
+            topic="Fonts",
+            template="tiktok_ai",
+            account="main",
+            metadata={"story_text_font_name": "Missing Display Font"},
+        )
+
+        with patch(
+            "pipeline.assembler._probe_runtime_font_name",
+            side_effect=[None, "Noto Sans", None, None, None, None],
+        ):
+            resolution = resolve_runtime_story_font(job)
+
+        self.assertEqual(resolution.requested_name, "Missing Display Font")
+        self.assertEqual(resolution.resolved_name, "Noto Sans")
+        self.assertTrue(resolution.used_fallback)
+        self.assertEqual(job.metadata["story_font_resolved"], "Noto Sans")
 
     def test_build_mux_command_with_audio_layers_switches_to_filter_complex(self) -> None:
         job = VideoJob(topic="Montage", template="tiktok_ai", account="main")
@@ -771,6 +868,124 @@ class AssemblerEditingTests(unittest.TestCase):
             assert isinstance(storyboard, list)
             self.assertIn("scene_title", storyboard[0])
             self.assertIn("overlay_applied", storyboard[0])
+
+    @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg and ffprobe are required")
+    def test_alpha_png_scene_clip_keeps_rgba_path_free_of_green_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="alpha_rgba_scene_") as temp_dir:
+            root = Path(temp_dir)
+            asset_path = root / "alpha_asset.png"
+            output_path = root / "scene_alpha.mp4"
+
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-y",
+                    "-f",
+                    "lavfi",
+                    "-i",
+                    "color=c=black@0.0:s=1080x1920:d=0.2",
+                    "-vf",
+                    "format=rgba,drawbox=x=360:y=780:w=360:h=360:color=red@0.96:t=fill",
+                    "-frames:v",
+                    "1",
+                    str(asset_path),
+                ],
+                check=True,
+            )
+
+            job = VideoJob(topic="Alpha", template="tiktok_ai", account="main")
+            scene = SceneSegment(
+                scene_id="scene_alpha",
+                index=0,
+                role="body",
+                scene_type="proof",
+                source_text="preuve visible sans artefact",
+                title_text="Proof",
+                highlight_text="preuve visible",
+                keywords=["preuve", "visible"],
+                word_count=4,
+                proof_mode="result",
+                visual_asset_mode="dashboard",
+                motion_effect="static",
+                transition_effect="cut",
+                transition_duration_seconds=0.0,
+                start_seconds=0.0,
+                end_seconds=1.2,
+                duration_seconds=1.2,
+            )
+            plan = SceneRenderPlan(
+                pace_role="proof",
+                camera_pattern="hold_static",
+                camera_intensity="low",
+                transition_in="blur_in",
+                transition_out="cut",
+                text_style="proof_clean",
+                overlay_style="proof_frame",
+                sfx_profile="none",
+                bgm_profile="none",
+            )
+
+            command = _build_edited_scene_clip_command(
+                job=job,
+                scene=scene,
+                scene_visual=None,
+                plan=plan,
+                asset_path=asset_path,
+                caption_path=None,
+                output_path=output_path,
+            )
+            subprocess.run(command, check=True)
+
+            center_sample = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(output_path),
+                    "-vf",
+                    "format=rgb24,crop=1:1:540:960",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "rawvideo",
+                    "-",
+                ],
+                capture_output=True,
+                check=True,
+            ).stdout
+            top_left_sample = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
+                    "-i",
+                    str(output_path),
+                    "-vf",
+                    "format=rgb24,crop=1:1:120:120",
+                    "-frames:v",
+                    "1",
+                    "-f",
+                    "rawvideo",
+                    "-",
+                ],
+                capture_output=True,
+                check=True,
+            ).stdout
+
+            self.assertEqual(len(center_sample), 3)
+            self.assertEqual(len(top_left_sample), 3)
+            self.assertGreater(center_sample[0], center_sample[1] + 40)
+            self.assertGreater(center_sample[0], center_sample[2] + 40)
+            self.assertFalse(
+                top_left_sample[1] > top_left_sample[0] + 40
+                and top_left_sample[1] > top_left_sample[2] + 40
+            )
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "ffmpeg and ffprobe are required")
     def test_assemble_video_step_keeps_render_valid_when_sfx_assets_are_missing(self) -> None:

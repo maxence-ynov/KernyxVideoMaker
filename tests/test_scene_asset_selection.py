@@ -19,6 +19,7 @@ from pipeline.scene_planner import SceneManifest, SceneSegment, load_scene_manif
 from pipeline.visual_gen import (
     ConfiguredSceneAsset,
     SceneAssetSelectionState,
+    _derive_scene_title,
     _build_explicit_scene_asset_map,
     _select_scene_asset_from_pool,
     generate_visual_step,
@@ -65,6 +66,30 @@ def _build_scene(
 
 
 class SceneAssetSelectionTests(unittest.TestCase):
+    def test_visual_gen_prefers_short_overlay_title_for_hook(self) -> None:
+        scene = SceneSegment(
+            scene_id="scene_hook",
+            index=0,
+            role="hook",
+            scene_type="hook",
+            source_text="Trois erreurs rendent ton automatisation inutile",
+            title_text="3 erreurs",
+            highlight_text="automatisation inutile",
+            keywords=["erreurs", "automatisation", "inutile"],
+            word_count=6,
+            proof_mode="generic",
+            visual_asset_mode="screenshot",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=1.2,
+            duration_seconds=1.2,
+            overlay_text="3 erreurs",
+        )
+
+        self.assertEqual(_derive_scene_title(scene), "3 erreurs")
+
     def test_load_asset_catalog_from_json_path(self) -> None:
         job = VideoJob(
             topic="Pourquoi l'hippopotame est dangereux",

@@ -9,7 +9,11 @@ import subprocess
 import sys
 from typing import Sequence
 
-from pipeline.assembler import AssemblerError, resolve_runtime_subtitle_font
+from pipeline.assembler import (
+    AssemblerError,
+    resolve_runtime_story_font,
+    resolve_runtime_subtitle_font,
+)
 from schemas import VideoJob
 
 LOGGER = logging.getLogger(__name__)
@@ -69,6 +73,7 @@ def run_runtime_preflight(
 
     font_failures: list[str] = []
     seen_font_requests: set[str] = set()
+    seen_story_font_requests: set[str] = set()
     for job in jobs:
         requested_name = str(
             job.metadata.get(
@@ -91,6 +96,28 @@ def run_runtime_preflight(
             else f"ok ({resolution.resolved_name})"
         )
         results.append(PreflightCheckResult(name="subtitle-font", detail=detail))
+
+        requested_story_name = str(
+            job.metadata.get(
+                "story_text_font_name",
+                job.metadata.get("overlay_font_name", ""),
+            )
+            or ""
+        ).strip()
+        if requested_story_name in seen_story_font_requests:
+            continue
+        seen_story_font_requests.add(requested_story_name)
+        try:
+            story_resolution = resolve_runtime_story_font(job)
+        except AssemblerError as exc:
+            font_failures.append(str(exc))
+            continue
+        story_detail = (
+            f"requested='{story_resolution.requested_name}' resolved='{story_resolution.resolved_name}'"
+            if story_resolution.used_fallback
+            else f"ok ({story_resolution.resolved_name})"
+        )
+        results.append(PreflightCheckResult(name="overlay-font", detail=story_detail))
 
     failures.extend(font_failures)
     if failures:

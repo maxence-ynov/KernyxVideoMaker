@@ -65,11 +65,33 @@ DEFAULT_EDIT_DUCKING_RATIO = 8.0
 DEFAULT_EDIT_DUCKING_ATTACK_MS = 15
 DEFAULT_EDIT_DUCKING_RELEASE_MS = 180
 DEFAULT_SUBTITLE_FONT_NAME = DEFAULT_CAPTION_FONT_NAME
+DEFAULT_STORY_FONT_NAME = "Noto Sans Display"
+DEFAULT_SYMBOL_FONT_NAME = "DejaVu Sans"
 DEFAULT_SUBTITLE_FONT_SIZE = DEFAULT_FALLBACK_SUBTITLE_FONT_SIZE
-RUNTIME_FONT_FALLBACKS = (DEFAULT_CAPTION_FONT_NAME, "Arial", "sans-serif")
+SUBTITLE_FONT_FALLBACKS = (
+    DEFAULT_SUBTITLE_FONT_NAME,
+    "DejaVu Sans",
+    "Liberation Sans",
+    "Arial",
+    "sans-serif",
+)
+DISPLAY_FONT_FALLBACKS = (
+    DEFAULT_STORY_FONT_NAME,
+    DEFAULT_SUBTITLE_FONT_NAME,
+    "DejaVu Sans",
+    "Liberation Sans",
+    "Arial",
+    "sans-serif",
+)
+SYMBOL_FONT_FALLBACKS = (
+    DEFAULT_SYMBOL_FONT_NAME,
+    "Noto Sans",
+    DEFAULT_SUBTITLE_FONT_NAME,
+    "sans-serif",
+)
 DEFAULT_SUBTITLE_MARGIN_V = DEFAULT_CAPTION_SAFE_BOTTOM_MARGIN
 DEFAULT_SUBTITLE_OUTLINE = 2
-DEFAULT_SUBTITLE_SHADOW = 1
+DEFAULT_SUBTITLE_SHADOW = 0
 DEFAULT_SCENE_MOTION_SCALE = 1.14
 DEFAULT_EDIT_BGM_VOLUME = 0.18
 DEFAULT_EDIT_SFX_VOLUME = 0.42
@@ -186,7 +208,10 @@ CAPTION_TOKEN_RE = re.compile(
     r"\d+(?:[.,]\d+)?%?|[\w]+(?:[.'/:%+-][\w]+)*",
     flags=re.UNICODE,
 )
-SCENE_STORY_WORD_RE = re.compile(r"\b[\w'-]+\b", flags=re.UNICODE)
+SCENE_STORY_WORD_RE = re.compile(
+    r"\d+(?:[.,]\d+)?%?|[\w]+(?:[.'/:%+-][\w]+)*",
+    flags=re.UNICODE,
+)
 CAPTION_STOPWORDS = frozenset(
     {
         "a",
@@ -405,6 +430,8 @@ class SceneStoryOverlayPlan:
     scene_keywords: tuple[str, ...]
     title_position: str
     keyword_position: str
+    context_icon: str | None
+    context_icon_color: str | None
     overlay_applied: tuple[str, ...]
     impact_zoom: bool
 
@@ -851,12 +878,14 @@ def _build_ffmpeg_command(
 
     filter_chain = [
         (
-            f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=increase,"
+            f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:flags=lanczos:force_original_aspect_ratio=increase,"
             f"crop={TARGET_WIDTH}:{TARGET_HEIGHT},setsar=1,fps={TARGET_FPS}"
         )
     ]
     if inputs.subtitles is not None:
+        filter_chain.append("format=rgba")
         filter_chain.append(_build_subtitle_filter(job, inputs.subtitles))
+        filter_chain.append("format=yuv420p")
 
     command.extend(["-vf", ",".join(filter_chain)])
     command.extend(["-map", "0:v:0", "-map", "1:a:0"])
@@ -1362,6 +1391,9 @@ def _build_edited_scene_filter_graph(
     parts.append(
         f"[0:v]{_build_camera_pattern_filter(plan, duration_seconds=duration_seconds)}[{current_label}]"
     )
+    next_label = "composite"
+    parts.append(f"[{current_label}]format=rgba[{next_label}]")
+    current_label = next_label
 
     overlay_filter = _build_overlay_filter(plan.overlay_style)
     if overlay_filter is not None:
@@ -1442,7 +1474,7 @@ def _build_camera_pattern_filter(plan: SceneRenderPlan, *, duration_seconds: flo
         )
 
     return (
-        f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=increase,"
+        f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:flags=lanczos:force_original_aspect_ratio=increase,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:x='(in_w-out_w)/2':y='(in_h-out_h)/2',"
         f"setsar=1,fps={TARGET_FPS}"
     )
@@ -1470,7 +1502,7 @@ def _build_pan_pattern_filter(
     return (
         f"scale=w='trunc({TARGET_WIDTH}*{zoom:.4f})':"
         f"h='trunc({TARGET_HEIGHT}*{zoom:.4f})':"
-        "force_original_aspect_ratio=increase:eval=frame,"
+        "flags=lanczos:force_original_aspect_ratio=increase:eval=frame,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:x='{x_expr}':y='(in_h-out_h)/2',"
         f"setsar=1,fps={TARGET_FPS}"
     )
@@ -1482,7 +1514,7 @@ def _build_micro_shake_filter(*, amplitude: int, zoom: float) -> str:
     return (
         f"scale=w='trunc({TARGET_WIDTH}*{zoom:.4f})':"
         f"h='trunc({TARGET_HEIGHT}*{zoom:.4f})':"
-        "force_original_aspect_ratio=increase:eval=frame,"
+        "flags=lanczos:force_original_aspect_ratio=increase:eval=frame,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:x='{x_expr}':y='{y_expr}',"
         f"setsar=1,fps={TARGET_FPS}"
     )
@@ -1504,7 +1536,7 @@ def _build_scale_crop_filter(*, zoom_expr: str) -> str:
     return (
         f"scale=w='trunc({TARGET_WIDTH}*({zoom_expr}))':"
         f"h='trunc({TARGET_HEIGHT}*({zoom_expr}))':"
-        "force_original_aspect_ratio=increase:eval=frame,"
+        "flags=lanczos:force_original_aspect_ratio=increase:eval=frame,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:x='(in_w-out_w)/2':y='(in_h-out_h)/2',"
         f"setsar=1,fps={TARGET_FPS}"
     )
@@ -1561,6 +1593,7 @@ def _build_scene_story_filter_chain(
 
     filters: list[str] = []
     font_name = _escape_drawtext_value(_resolve_story_text_font_name(job))
+    symbol_font_name = _escape_drawtext_value(_resolve_story_symbol_font_name(job))
     title_alpha = _escape_drawtext_expr("if(lt(t,0.08),0,if(lt(t,0.34),(t-0.08)/0.26,1))")
     keyword_alpha = _escape_drawtext_expr("if(lt(t,0.18),0,if(lt(t,0.42),(t-0.18)/0.24,1))")
 
@@ -1568,85 +1601,91 @@ def _build_scene_story_filter_chain(
         if story_plan.title_position == "center":
             filters.extend(
                 [
-                    "drawbox=x=44:y=520:w=iw-88:h=300:color=black@0.20:t=fill",
-                    "drawbox=x=44:y=520:w=iw-88:h=300:color=white@0.08:t=6",
+                    "drawbox=x=54:y=516:w=iw-108:h=296:color=black@0.18:t=fill",
+                    "drawbox=x=54:y=516:w=iw-108:h=296:color=white@0.08:t=4",
                 ]
             )
         else:
             filters.extend(
                 [
-                    "drawbox=x=48:y=132:w=iw-96:h=250:color=black@0.18:t=fill",
-                    "drawbox=x=48:y=132:w=iw-96:h=250:color=white@0.08:t=5",
+                    "drawbox=x=56:y=128:w=iw-112:h=238:color=black@0.14:t=fill",
+                    "drawbox=x=56:y=128:w=iw-112:h=238:color=white@0.08:t=4",
                 ]
             )
 
-    sanitized_title_text = _sanitize_story_drawtext_text(story_plan.title_text)
-    title_lines = _wrap_scene_story_title(sanitized_title_text)
-    title_text = _escape_drawtext_text("\\n".join(title_lines))
-    title_y = _escape_drawtext_expr(
-        "(h-text_h)/2-110+if(lt(t,0.28),(0.28-t)*120,0)"
-        if story_plan.title_position == "center"
-        else "192+if(lt(t,0.28),(0.28-t)*86,0)"
-    )
-    title_font_size = "92" if story_plan.title_position == "center" else "78"
-    filters.append(
-        "drawtext="
-        f"font='{font_name}':"
-        f"text='{title_text}':"
-        f"fontsize={title_font_size}:"
-        "fontcolor=white:"
-        "borderw=4:bordercolor=black@0.95:"
-        "shadowx=0:shadowy=4:shadowcolor=black@0.85:"
-        "line_spacing=18:"
-        "x='(w-text_w)/2':"
-        f"y='{title_y}':"
-        f"alpha='{title_alpha}'"
-    )
+    if story_plan.title_text:
+        sanitized_title_text = _sanitize_story_drawtext_text(story_plan.title_text)
+        title_lines = _wrap_scene_story_title(sanitized_title_text)
+        title_text = _escape_drawtext_text("\\n".join(title_lines))
+        title_y = _escape_drawtext_expr(
+            "(h-text_h)/2-122+if(lt(t,0.28),(0.28-t)*104,0)"
+            if story_plan.title_position == "center"
+            else "176+if(lt(t,0.28),(0.28-t)*72,0)"
+        )
+        title_font_size = "84" if story_plan.title_position == "center" else "68"
+        filters.append(
+            "drawtext="
+            f"font='{font_name}':"
+            "expansion=none:"
+            f"text='{title_text}':"
+            f"fontsize={title_font_size}:"
+            "fontcolor=0xFFF9FB:"
+            "borderw=3:bordercolor=0x0F1220@0.92:"
+            "shadowx=0:shadowy=3:shadowcolor=black@0.58:"
+            "line_spacing=12:"
+            "x='(w-text_w)/2':"
+            f"y='{title_y}':"
+            f"alpha='{title_alpha}'"
+        )
 
     if story_plan.keyword_text:
         if story_plan.keyword_position == "side":
             if "highlight_box" in story_plan.overlay_applied:
-                filters.append("drawbox=x=702:y=354:w=318:h=84:color=black@0.32:t=fill")
-            if "focus_arrow" in story_plan.overlay_applied:
-                filters.append(
-                    "drawtext="
-                    f"font='{font_name}':"
-                    "text='>>':"
-                    "fontsize=44:"
-                    "fontcolor=0xFFD24A:"
-                    "borderw=2:bordercolor=black@0.90:"
-                    "shadowx=0:shadowy=2:shadowcolor=black@0.75:"
-                    "x=650:y=372:"
-                    f"alpha='{keyword_alpha}'"
+                filters.extend(
+                    [
+                        "drawbox=x=674:y=332:w=360:h=98:color=0x0F1422@0.34:t=fill",
+                        "drawbox=x=674:y=332:w=360:h=98:color=white@0.08:t=3",
+                    ]
                 )
-            keyword_y = "372"
-            keyword_x = "744"
+            keyword_y = "362"
+            icon_x = "706"
+            keyword_x = "756" if story_plan.context_icon else "710"
         else:
             if "highlight_box" in story_plan.overlay_applied:
-                filters.append("drawbox=x=60:y=1440:w=420:h=84:color=black@0.34:t=fill")
-            if "focus_arrow" in story_plan.overlay_applied:
-                filters.append(
-                    "drawtext="
-                    f"font='{font_name}':"
-                    "text='>>':"
-                    "fontsize=42:"
-                    "fontcolor=0xFFD24A:"
-                    "borderw=2:bordercolor=black@0.90:"
-                    "shadowx=0:shadowy=2:shadowcolor=black@0.75:"
-                    "x=74:y=1392:"
-                    f"alpha='{keyword_alpha}'"
+                filters.extend(
+                    [
+                        "drawbox=x=72:y=1416:w=452:h=94:color=0x0F1422@0.36:t=fill",
+                        "drawbox=x=72:y=1416:w=452:h=94:color=white@0.08:t=3",
+                    ]
                 )
-            keyword_y = "1462"
-            keyword_x = "102"
+            keyword_y = "1446"
+            icon_x = "106"
+            keyword_x = "154" if story_plan.context_icon else "112"
+
+        if "context_icon" in story_plan.overlay_applied and story_plan.context_icon:
+            icon_color = story_plan.context_icon_color or "0xA8D4FF"
+            filters.append(
+                "drawtext="
+                f"font='{symbol_font_name}':"
+                "expansion=none:"
+                f"text='{_escape_drawtext_text(story_plan.context_icon)}':"
+                "fontsize=42:"
+                f"fontcolor={icon_color}:"
+                "borderw=1:bordercolor=black@0.72:"
+                "shadowx=0:shadowy=2:shadowcolor=black@0.48:"
+                f"x={icon_x}:y={keyword_y}:"
+                f"alpha='{keyword_alpha}'"
+            )
 
         filters.append(
             "drawtext="
             f"font='{font_name}':"
-            f"text='{_escape_drawtext_text(_sanitize_story_drawtext_text(story_plan.keyword_text).upper())}':"
-            "fontsize=42:"
-            "fontcolor=white:"
-            "borderw=3:bordercolor=black@0.95:"
-            "shadowx=0:shadowy=3:shadowcolor=black@0.80:"
+            "expansion=none:"
+            f"text='{_escape_drawtext_text(_sanitize_story_drawtext_text(story_plan.keyword_text))}':"
+            "fontsize=34:"
+            "fontcolor=0xFFF9FB:"
+            "borderw=2:bordercolor=0x0F1220@0.88:"
+            "shadowx=0:shadowy=2:shadowcolor=black@0.52:"
             f"x={keyword_x}:y={keyword_y}:"
             f"alpha='{keyword_alpha}'"
         )
@@ -1686,10 +1725,24 @@ def _build_scene_story_overlay_plan(
         and has_visual_evidence
     ):
         title_text = ""
+    keyword_text = _derive_scene_context_label(
+        scene,
+        scene_visual=scene_visual,
+        title_text=title_text,
+        allow_when_title_is_centered=not bool(title_text and title_position == "center"),
+    )
+    context_icon, context_icon_color = _derive_scene_context_icon(
+        scene,
+        keyword_text=keyword_text,
+    )
 
     overlay_applied: list[str] = []
     if title_text:
         overlay_applied.append("title_text")
+    if keyword_text:
+        overlay_applied.extend(["keyword_text", "highlight_box"])
+    if context_icon and keyword_text:
+        overlay_applied.append("context_icon")
 
     impact_zoom = (
         bool(title_text)
@@ -1708,6 +1761,8 @@ def _build_scene_story_overlay_plan(
         scene_keywords=tuple(scene_keywords),
         title_position=title_position,
         keyword_position=keyword_position,
+        context_icon=context_icon,
+        context_icon_color=context_icon_color,
         overlay_applied=tuple(overlay_applied),
         impact_zoom=impact_zoom,
     )
@@ -1736,11 +1791,15 @@ def _scene_has_visual_evidence(
 
 
 def _derive_scene_story_title(scene: SceneSegment) -> str:
+    if scene.overlay_text:
+        overlay_words = _split_scene_story_words(scene.overlay_text)
+        if overlay_words:
+            return " ".join(overlay_words[: min(5, len(overlay_words))])
     if scene.visual_intensity_level is not None:
-        return scene.overlay_text or ""
+        return ""
     for candidate in (scene.highlight_text, scene.title_text, scene.source_text):
         words = _split_scene_story_words(candidate)
-        if 3 <= len(words) <= 6:
+        if 2 <= len(words) <= 6:
             return " ".join(words)
         if len(words) > 6:
             return " ".join(words[:6])
@@ -1791,6 +1850,97 @@ def _wrap_scene_story_title(title_text: str) -> list[str]:
     return [" ".join(words[:3]), " ".join(words[3:6])]
 
 
+def _derive_scene_context_label(
+    scene: SceneSegment,
+    *,
+    scene_visual: SceneVisualAsset | None,
+    title_text: str,
+    allow_when_title_is_centered: bool,
+) -> str | None:
+    if not allow_when_title_is_centered:
+        return None
+
+    candidates: list[str] = []
+    if scene.overlay_text:
+        candidates.append(scene.overlay_text)
+    if scene.highlight_text:
+        candidates.append(scene.highlight_text)
+    if scene_visual is not None and scene_visual.scene_keywords:
+        candidates.extend(scene_visual.scene_keywords)
+    candidates.extend(scene.keywords)
+
+    normalized_title = _normalize_font_identity(title_text)
+    for candidate in candidates:
+        normalized_candidate = _sanitize_story_drawtext_text(candidate)
+        if not normalized_candidate:
+            continue
+        if _normalize_font_identity(normalized_candidate) == normalized_title:
+            continue
+        words = _split_scene_story_words(normalized_candidate)
+        if not words:
+            continue
+        compact = " ".join(words[: min(3, len(words))])
+        if _normalize_font_identity(compact) == normalized_title:
+            continue
+        if len(compact) < 3:
+            continue
+        return compact
+    return None
+
+
+def _derive_scene_context_icon(
+    scene: SceneSegment,
+    *,
+    keyword_text: str | None,
+) -> tuple[str | None, str | None]:
+    signal_pool = " ".join(
+        part
+        for part in (
+            scene.source_text,
+            scene.highlight_text,
+            scene.title_text,
+            scene.overlay_text or "",
+            keyword_text or "",
+            scene.proof_mode,
+            scene.scene_type,
+            *scene.keywords,
+        )
+        if part
+    ).lower()
+    if any(token in signal_pool for token in ("alert", "bug", "erreur", "error", "fail", "risque")):
+        return "⚠", "0xFFB347"
+    if any(token in signal_pool for token in ("gain", "progress", "result", "resultat", "retention")) or any(
+        character.isdigit() for character in signal_pool
+    ):
+        return "↗", "0x8CE99A"
+    if any(token in signal_pool for token in ("heure", "minute", "minutes", "rapid", "temps", "time")):
+        return "✓", "0x8ED6FF"
+    if any(
+        token in signal_pool
+        for token in (
+            "airtable",
+            "api",
+            "app",
+            "chatgpt",
+            "dashboard",
+            "interface",
+            "make",
+            "n8n",
+            "notion",
+            "openai",
+            "screen",
+            "tool",
+            "ui",
+            "workflow",
+            "zapier",
+        )
+    ):
+        return "⚙", "0xA8D4FF"
+    if keyword_text:
+        return "✓", "0xA8D4FF"
+    return None, None
+
+
 def _build_story_impact_zoom_filter(*, duration_seconds: float) -> str:
     impact_window = min(0.22, max(0.10, duration_seconds / 4.5))
     settle_end = min(duration_seconds, max(0.42, impact_window + 0.34))
@@ -1806,11 +1956,27 @@ def _build_story_impact_zoom_filter(*, duration_seconds: float) -> str:
 
 
 def _resolve_story_text_font_name(job: VideoJob) -> str:
-    for key in ("edit_caption_font_resolved", "edit_caption_font_name", "subtitle_font_resolved", "subtitle_font_name"):
+    story_resolution = resolve_runtime_story_font(job)
+    if story_resolution.resolved_name:
+        return story_resolution.resolved_name
+    for key in (
+        "story_font_resolved",
+        "story_text_font_name",
+        "overlay_font_name",
+        "edit_caption_font_resolved",
+        "edit_caption_font_name",
+        "subtitle_font_resolved",
+        "subtitle_font_name",
+    ):
         value = job.metadata.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    return DEFAULT_SUBTITLE_FONT_NAME
+    return DEFAULT_STORY_FONT_NAME
+
+
+def _resolve_story_symbol_font_name(job: VideoJob) -> str:
+    resolution = resolve_runtime_story_symbol_font(job)
+    return resolution.resolved_name
 
 
 def _sanitize_story_drawtext_text(value: str) -> str:
@@ -1858,7 +2024,9 @@ def _append_transition_filter(
             f"fade=t={fade_type}:st={fade_start:.3f}:d={fade_duration:.3f}:alpha=1"
             f"[{blur_overlay_label}]"
         )
-        parts.append(f"[{base_label}][{blur_overlay_label}]overlay=shortest=1[{output_label}]")
+        parts.append(
+            f"[{base_label}][{blur_overlay_label}]overlay=shortest=1:format=auto:eof_action=pass[{output_label}]"
+        )
         return output_label
 
     return input_label
@@ -2377,21 +2545,21 @@ def _resolve_caption_style_profile(
         return CaptionStyleProfile(
             name=style_name,
             font_name=font_name,
-            font_size=30,
+            font_size=32,
             primary_color="&H00FFFFFF",
             highlight_color="&H0027B8FF",
-            outline_color="&H5A000000",
-            back_color="&H2A000000",
+            outline_color="&H62000000",
+            back_color="&H24000000",
             bold=1,
-            outline=3,
-            shadow=1,
-            spacing=0.35,
+            outline=2,
+            shadow=0,
+            spacing=0.18,
             alignment=2,
             border_style=1,
             margin_l=side_margin,
             margin_r=side_margin,
-            margin_v=bottom_margin + 40,
-            wrap_chars=16,
+            margin_v=bottom_margin + 44,
+            wrap_chars=17,
             max_words=4,
             max_duration_ms=1800,
         )
@@ -2399,20 +2567,20 @@ def _resolve_caption_style_profile(
         return CaptionStyleProfile(
             name=style_name,
             font_name=font_name,
-            font_size=24,
+            font_size=26,
             primary_color="&H00F4F7F8",
             highlight_color="&H0067E3B2",
-            outline_color="&H50000000",
-            back_color="&H16000000",
-            bold=0,
+            outline_color="&H60000000",
+            back_color="&H14000000",
+            bold=1,
             outline=2,
             shadow=0,
-            spacing=0.15,
+            spacing=0.12,
             alignment=2,
             border_style=1,
             margin_l=side_margin + 16,
             margin_r=side_margin + 16,
-            margin_v=bottom_margin + 10,
+            margin_v=bottom_margin + 12,
             wrap_chars=20,
             max_words=6,
             max_duration_ms=2300,
@@ -2421,15 +2589,15 @@ def _resolve_caption_style_profile(
         return CaptionStyleProfile(
             name=style_name,
             font_name=font_name,
-            font_size=28,
+            font_size=30,
             primary_color="&H00FFFFFF",
             highlight_color="&H00A2DBFF",
-            outline_color="&H56000000",
-            back_color="&H28000000",
+            outline_color="&H62000000",
+            back_color="&H22000000",
             bold=1,
             outline=2,
-            shadow=1,
-            spacing=0.2,
+            shadow=0,
+            spacing=0.12,
             alignment=2,
             border_style=1,
             margin_l=side_margin,
@@ -2442,20 +2610,20 @@ def _resolve_caption_style_profile(
     return CaptionStyleProfile(
         name="explain_readable",
         font_name=font_name,
-        font_size=26,
+        font_size=28,
         primary_color="&H00FFFFFF",
         highlight_color="&H0079CCFF",
-        outline_color="&H54000000",
-        back_color="&H22000000",
+        outline_color="&H62000000",
+        back_color="&H18000000",
         bold=1,
         outline=2,
         shadow=0,
-        spacing=0.2,
+        spacing=0.12,
         alignment=2,
         border_style=1,
         margin_l=side_margin + 8,
         margin_r=side_margin + 8,
-        margin_v=bottom_margin + 20,
+        margin_v=bottom_margin + 24,
         wrap_chars=18,
         max_words=6,
         max_duration_ms=2400,
@@ -2892,7 +3060,7 @@ def _build_scene_video_filter(
         base_filter = _build_pan_filter(duration_seconds, axis="x", direction="forward")
     else:
         base_filter = (
-            f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:force_original_aspect_ratio=increase,"
+            f"scale={TARGET_WIDTH}:{TARGET_HEIGHT}:flags=lanczos:force_original_aspect_ratio=increase,"
             f"crop={TARGET_WIDTH}:{TARGET_HEIGHT},setsar=1,fps={TARGET_FPS}"
         )
 
@@ -2900,19 +3068,23 @@ def _build_scene_video_filter(
         job=job,
         story_plan=_build_scene_story_overlay_plan(scene=scene, scene_visual=scene_visual, plan=None),
     )
-    filter_chain = base_filter
+    needs_rgba = bool(story_filter) or (
+        scene.transition_effect == "fade" and scene.transition_duration_seconds > 0
+    )
+    filter_chain = f"{base_filter},format=rgba" if needs_rgba else base_filter
     if story_filter:
         filter_chain = f"{filter_chain},{story_filter}"
 
     if scene.transition_effect != "fade" or scene.transition_duration_seconds <= 0:
-        return filter_chain
+        return f"{filter_chain},format=yuv420p" if needs_rgba else filter_chain
 
     fade_duration = _clamp(scene.transition_duration_seconds, 0.08, min(0.35, duration_seconds / 3.0))
     fade_out_start = max(0.0, duration_seconds - fade_duration)
     return (
         f"{filter_chain},"
         f"fade=t=in:st=0:d={fade_duration:.3f},"
-        f"fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f}"
+        f"fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f},"
+        "format=yuv420p"
     )
 
 
@@ -2920,7 +3092,7 @@ def _build_zoom_filter(duration_seconds: float) -> str:
     frame_count = max(2, int(round(duration_seconds * TARGET_FPS)))
     return (
         f"scale={int(TARGET_WIDTH * DEFAULT_SCENE_MOTION_SCALE)}:"
-        f"{int(TARGET_HEIGHT * DEFAULT_SCENE_MOTION_SCALE)}:force_original_aspect_ratio=increase,"
+        f"{int(TARGET_HEIGHT * DEFAULT_SCENE_MOTION_SCALE)}:flags=lanczos:force_original_aspect_ratio=increase,"
         f"zoompan="
         f"z='min(max(zoom,pzoom)+0.0015,1.12)':"
         f"x='iw/2-(iw/zoom/2)':"
@@ -2941,7 +3113,7 @@ def _build_pan_filter(duration_seconds: float, *, axis: str, direction: str) -> 
     x_expr = f"(in_w-out_w)*{travel}" if axis == "x" else "(in_w-out_w)/2"
     y_expr = f"(in_h-out_h)*{travel}" if axis == "y" else "(in_h-out_h)/2"
     return (
-        f"scale={scaled_width}:{scaled_height}:force_original_aspect_ratio=increase,"
+        f"scale={scaled_width}:{scaled_height}:flags=lanczos:force_original_aspect_ratio=increase,"
         f"crop={TARGET_WIDTH}:{TARGET_HEIGHT}:x='{x_expr}':y='{y_expr}',"
         f"setsar=1,fps={TARGET_FPS}"
     )
@@ -3035,7 +3207,9 @@ def _build_prepared_audio_mux_command(
 
     video_filters = [f"setsar=1", f"fps={TARGET_FPS}"]
     if subtitles_path is not None:
+        video_filters.append("format=rgba")
         video_filters.append(_build_subtitle_filter(job, subtitles_path))
+        video_filters.append("format=yuv420p")
 
     command.extend(["-vf", ",".join(video_filters)])
     command.extend(["-map", "0:v:0", "-map", "1:a:0"])
@@ -3121,7 +3295,9 @@ def _build_mux_command(
     else:
         filter_chain = [f"setsar=1,fps={TARGET_FPS}"]
         if subtitles_path is not None:
+            filter_chain.append("format=rgba")
             filter_chain.append(_build_subtitle_filter(job, subtitles_path))
+            filter_chain.append("format=yuv420p")
 
         command.extend(["-vf", ",".join(filter_chain)])
         command.extend(["-map", "0:v:0", "-map", "1:a:0"])
@@ -4903,8 +5079,8 @@ def _build_subtitle_filter(job: VideoJob, subtitles_path: Path) -> str:
             f"FontName={font_name}",
             f"FontSize={font_size}",
             "PrimaryColour=&H00FFFFFF",
-            "OutlineColour=&H54000000",
-            "BackColour=&H24000000",
+            "OutlineColour=&H62000000",
+            "BackColour=&H18000000",
             "BorderStyle=1",
             f"Outline={outline}",
             f"Shadow={shadow}",
@@ -4913,7 +5089,7 @@ def _build_subtitle_filter(job: VideoJob, subtitles_path: Path) -> str:
             f"MarginL={margin_side}",
             f"MarginR={margin_side}",
             f"MarginV={margin_v}",
-            "Spacing=0.15",
+            "Spacing=0.20",
         ]
     )
     return (
@@ -4929,6 +5105,7 @@ def resolve_runtime_subtitle_font(job: VideoJob) -> RuntimeFontResolution:
         requested_name=requested_name,
         requested_key="subtitle_font_requested",
         resolved_key="subtitle_font_resolved",
+        fallbacks=SUBTITLE_FONT_FALLBACKS,
     )
 
 
@@ -4943,6 +5120,37 @@ def _resolve_runtime_edit_caption_font(job: VideoJob) -> RuntimeFontResolution:
         requested_name=requested_name,
         requested_key="edit_caption_font_requested",
         resolved_key="edit_caption_font_resolved",
+        fallbacks=SUBTITLE_FONT_FALLBACKS,
+    )
+
+
+def resolve_runtime_story_font(job: VideoJob) -> RuntimeFontResolution:
+    requested_name = _read_str_metadata(
+        job,
+        "story_text_font_name",
+        _read_str_metadata(job, "overlay_font_name", DEFAULT_STORY_FONT_NAME),
+    )
+    return _resolve_runtime_font_name(
+        job,
+        requested_name=requested_name,
+        requested_key="story_font_requested",
+        resolved_key="story_font_resolved",
+        fallbacks=DISPLAY_FONT_FALLBACKS,
+    )
+
+
+def resolve_runtime_story_symbol_font(job: VideoJob) -> RuntimeFontResolution:
+    requested_name = _read_str_metadata(
+        job,
+        "overlay_symbol_font_name",
+        DEFAULT_SYMBOL_FONT_NAME,
+    )
+    return _resolve_runtime_font_name(
+        job,
+        requested_name=requested_name,
+        requested_key="story_symbol_font_requested",
+        resolved_key="story_symbol_font_resolved",
+        fallbacks=SYMBOL_FONT_FALLBACKS,
     )
 
 
@@ -4952,6 +5160,7 @@ def _resolve_runtime_font_name(
     requested_name: str,
     requested_key: str,
     resolved_key: str,
+    fallbacks: tuple[str, ...],
 ) -> RuntimeFontResolution:
     cached_requested = job.metadata.get(requested_key)
     cached_resolved = job.metadata.get(resolved_key)
@@ -4970,7 +5179,7 @@ def _resolve_runtime_font_name(
             used_fallback=used_fallback,
         )
 
-    for candidate_name in _iter_runtime_font_candidates(requested_name):
+    for candidate_name in _iter_runtime_font_candidates(requested_name, fallbacks=fallbacks):
         resolved_name = _probe_runtime_font_name(candidate_name)
         if resolved_name is None:
             continue
@@ -4993,13 +5202,17 @@ def _resolve_runtime_font_name(
 
     raise AssemblerError(
         "unable to resolve a runtime subtitle font; tried "
-        f"{', '.join(_iter_runtime_font_candidates(requested_name))}"
+        f"{', '.join(_iter_runtime_font_candidates(requested_name, fallbacks=fallbacks))}"
     )
 
 
-def _iter_runtime_font_candidates(requested_name: str) -> tuple[str, ...]:
+def _iter_runtime_font_candidates(
+    requested_name: str,
+    *,
+    fallbacks: tuple[str, ...],
+) -> tuple[str, ...]:
     candidates: list[str] = []
-    for candidate in (requested_name, *RUNTIME_FONT_FALLBACKS):
+    for candidate in (requested_name, *fallbacks):
         normalized_candidate = candidate.strip()
         if normalized_candidate and normalized_candidate not in candidates:
             candidates.append(normalized_candidate)

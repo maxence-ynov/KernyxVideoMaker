@@ -78,10 +78,19 @@ class RuntimePreflightTests(unittest.TestCase):
                     used_fallback=False,
                 ),
             ),
+            patch(
+                "core.preflight.resolve_runtime_story_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Noto Sans Display",
+                    resolved_name="Noto Sans Display",
+                    used_fallback=False,
+                ),
+            ),
         ):
             results = run_runtime_preflight([job], "config/topics.json")
 
         self.assertTrue(any(result.name == "subtitle-font" for result in results))
+        self.assertTrue(any(result.name == "overlay-font" for result in results))
         self.assertTrue(any("DejaVu Sans" in result.detail for result in results))
 
     def test_preflight_reports_font_fallback_when_requested_font_is_missing(self) -> None:
@@ -89,7 +98,10 @@ class RuntimePreflightTests(unittest.TestCase):
             topic="Hooks",
             template="tiktok_ai",
             account="main",
-            metadata={"subtitle_font_name": "Missing Font"},
+            metadata={
+                "subtitle_font_name": "Missing Font",
+                "story_text_font_name": "Missing Display Font",
+            },
         )
         with (
             patch("core.preflight.shutil.which", side_effect=_which),
@@ -110,12 +122,23 @@ class RuntimePreflightTests(unittest.TestCase):
                     used_fallback=True,
                 ),
             ),
+            patch(
+                "core.preflight.resolve_runtime_story_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Missing Display Font",
+                    resolved_name="Noto Sans",
+                    used_fallback=True,
+                ),
+            ),
         ):
             results = run_runtime_preflight([job], "config/topics.json")
 
         font_result = next(result for result in results if result.name == "subtitle-font")
+        overlay_result = next(result for result in results if result.name == "overlay-font")
         self.assertIn("requested='Missing Font'", font_result.detail)
         self.assertIn("resolved='DejaVu Sans'", font_result.detail)
+        self.assertIn("requested='Missing Display Font'", overlay_result.detail)
+        self.assertIn("resolved='Noto Sans'", overlay_result.detail)
 
 
 if __name__ == "__main__":
