@@ -434,6 +434,38 @@ class SceneStoryOverlayPlan:
     context_icon_color: str | None
     overlay_applied: tuple[str, ...]
     impact_zoom: bool
+    pace_role: str
+
+
+@dataclass(slots=True, frozen=True)
+class StoryOverlayRoleProfile:
+    pace_role: str
+    accent_color: str
+    title_center_font_size: int
+    title_top_font_size: int
+    title_center_y_offset: int
+    title_top_y: int
+    title_line_spacing: int
+    title_border_width: int
+    title_shadow_y: int
+    title_shadow_alpha: float
+    title_alpha_delay_seconds: float
+    title_alpha_duration_seconds: float
+    title_intro_duration_seconds: float
+    title_settle_duration_seconds: float
+    title_start_offset_px: int
+    title_overshoot_px: int
+    keyword_font_size: int
+    keyword_side_y: int
+    keyword_bottom_y: int
+    keyword_border_width: int
+    keyword_shadow_y: int
+    keyword_alpha_delay_seconds: float
+    keyword_alpha_duration_seconds: float
+    keyword_intro_duration_seconds: float
+    keyword_settle_duration_seconds: float
+    keyword_start_offset_px: int
+    keyword_overshoot_px: int
 
 
 @dataclass(slots=True, frozen=True)
@@ -1548,9 +1580,9 @@ def _build_overlay_filter(overlay_style: str) -> str | None:
     if overlay_style == "light_glow":
         return "eq=brightness=0.025:saturation=1.08:contrast=1.04"
     if overlay_style == "proof_frame":
-        return "drawbox=x=36:y=36:w=iw-72:h=ih-72:color=white@0.22:t=4"
+        return "drawbox=x=42:y=42:w=iw-84:h=ih-84:color=white@0.15:t=2"
     if overlay_style == "cta_band":
-        return "drawbox=x=0:y=1480:w=iw:h=300:color=black@0.38:t=fill"
+        return "eq=brightness=0.010:saturation=1.02:contrast=1.01,drawbox=x=92:y=1368:w=896:h=2:color=white@0.09:t=fill"
     return None
 
 
@@ -1578,7 +1610,7 @@ def _append_scene_story_overlay_filters(
 
     zoom_output_label = f"story_zoom_{len(parts)}"
     parts.append(
-        f"[{output_label}]{_build_story_impact_zoom_filter(duration_seconds=duration_seconds)}[{zoom_output_label}]"
+        f"[{output_label}]{_build_story_impact_zoom_filter(duration_seconds=duration_seconds, pace_role=story_plan.pace_role)}[{zoom_output_label}]"
     )
     return zoom_output_label
 
@@ -1594,35 +1626,43 @@ def _build_scene_story_filter_chain(
     filters: list[str] = []
     font_name = _escape_drawtext_value(_resolve_story_text_font_name(job))
     symbol_font_name = _escape_drawtext_value(_resolve_story_symbol_font_name(job))
-    title_alpha = _escape_drawtext_expr("if(lt(t,0.08),0,if(lt(t,0.34),(t-0.08)/0.26,1))")
-    keyword_alpha = _escape_drawtext_expr("if(lt(t,0.18),0,if(lt(t,0.42),(t-0.18)/0.24,1))")
-
-    if "highlight_box" in story_plan.overlay_applied and story_plan.title_text:
-        if story_plan.title_position == "center":
-            filters.extend(
-                [
-                    "drawbox=x=54:y=516:w=iw-108:h=296:color=black@0.18:t=fill",
-                    "drawbox=x=54:y=516:w=iw-108:h=296:color=white@0.08:t=4",
-                ]
-            )
-        else:
-            filters.extend(
-                [
-                    "drawbox=x=56:y=128:w=iw-112:h=238:color=black@0.14:t=fill",
-                    "drawbox=x=56:y=128:w=iw-112:h=238:color=white@0.08:t=4",
-                ]
-            )
+    profile = _resolve_story_overlay_role_profile(story_plan)
+    title_alpha = _escape_drawtext_expr(
+        _build_story_alpha_expr(
+            delay_seconds=profile.title_alpha_delay_seconds,
+            duration_seconds=profile.title_alpha_duration_seconds,
+        )
+    )
+    keyword_alpha = _escape_drawtext_expr(
+        _build_story_alpha_expr(
+            delay_seconds=profile.keyword_alpha_delay_seconds,
+            duration_seconds=profile.keyword_alpha_duration_seconds,
+        )
+    )
 
     if story_plan.title_text:
         sanitized_title_text = _sanitize_story_drawtext_text(story_plan.title_text)
         title_lines = _wrap_scene_story_title(sanitized_title_text)
         title_text = _escape_drawtext_text("\\n".join(title_lines))
-        title_y = _escape_drawtext_expr(
-            "(h-text_h)/2-122+if(lt(t,0.28),(0.28-t)*104,0)"
+        title_base_y = (
+            f"(h-text_h)/2-{profile.title_center_y_offset}"
             if story_plan.title_position == "center"
-            else "176+if(lt(t,0.28),(0.28-t)*72,0)"
+            else str(profile.title_top_y)
         )
-        title_font_size = "84" if story_plan.title_position == "center" else "68"
+        title_y = _escape_drawtext_expr(
+            _build_story_pop_y_expr(
+                final_y_expr=title_base_y,
+                start_offset_px=profile.title_start_offset_px,
+                overshoot_px=profile.title_overshoot_px,
+                intro_duration_seconds=profile.title_intro_duration_seconds,
+                settle_duration_seconds=profile.title_settle_duration_seconds,
+            )
+        )
+        title_font_size = (
+            str(profile.title_center_font_size)
+            if story_plan.title_position == "center"
+            else str(profile.title_top_font_size)
+        )
         filters.append(
             "drawtext="
             f"font='{font_name}':"
@@ -1630,40 +1670,45 @@ def _build_scene_story_filter_chain(
             f"text='{title_text}':"
             f"fontsize={title_font_size}:"
             "fontcolor=0xFFF9FB:"
-            "borderw=3:bordercolor=0x0F1220@0.92:"
-            "shadowx=0:shadowy=3:shadowcolor=black@0.58:"
-            "line_spacing=12:"
+            f"borderw={profile.title_border_width}:bordercolor=0x111522@0.88:"
+            f"shadowx=0:shadowy={profile.title_shadow_y}:shadowcolor=black@{profile.title_shadow_alpha:.2f}:"
+            f"line_spacing={profile.title_line_spacing}:"
             "x='(w-text_w)/2':"
             f"y='{title_y}':"
             f"alpha='{title_alpha}'"
         )
 
     if story_plan.keyword_text:
+        accent_color = story_plan.context_icon_color or profile.accent_color
         if story_plan.keyword_position == "side":
             if "highlight_box" in story_plan.overlay_applied:
-                filters.extend(
-                    [
-                        "drawbox=x=674:y=332:w=360:h=98:color=0x0F1422@0.34:t=fill",
-                        "drawbox=x=674:y=332:w=360:h=98:color=white@0.08:t=3",
-                    ]
+                filters.append(
+                    f"drawbox=x=692:y={profile.keyword_side_y - 14}:w=6:h=74:color={accent_color}@0.82:t=fill"
                 )
-            keyword_y = "362"
-            icon_x = "706"
-            keyword_x = "756" if story_plan.context_icon else "710"
+            keyword_y_base = str(profile.keyword_side_y)
+            icon_x = "716"
+            keyword_x = "764" if story_plan.context_icon else "724"
         else:
             if "highlight_box" in story_plan.overlay_applied:
-                filters.extend(
-                    [
-                        "drawbox=x=72:y=1416:w=452:h=94:color=0x0F1422@0.36:t=fill",
-                        "drawbox=x=72:y=1416:w=452:h=94:color=white@0.08:t=3",
-                    ]
+                filters.append(
+                    f"drawbox=x=96:y={profile.keyword_bottom_y - 24}:w=132:h=5:color={accent_color}@0.78:t=fill"
                 )
-            keyword_y = "1446"
-            icon_x = "106"
-            keyword_x = "154" if story_plan.context_icon else "112"
+            keyword_y_base = str(profile.keyword_bottom_y)
+            icon_x = "118"
+            keyword_x = "166" if story_plan.context_icon else "126"
+
+        keyword_y = _escape_drawtext_expr(
+            _build_story_pop_y_expr(
+                final_y_expr=keyword_y_base,
+                start_offset_px=profile.keyword_start_offset_px,
+                overshoot_px=profile.keyword_overshoot_px,
+                intro_duration_seconds=profile.keyword_intro_duration_seconds,
+                settle_duration_seconds=profile.keyword_settle_duration_seconds,
+            )
+        )
 
         if "context_icon" in story_plan.overlay_applied and story_plan.context_icon:
-            icon_color = story_plan.context_icon_color or "0xA8D4FF"
+            icon_color = story_plan.context_icon_color or accent_color
             filters.append(
                 "drawtext="
                 f"font='{symbol_font_name}':"
@@ -1671,9 +1716,9 @@ def _build_scene_story_filter_chain(
                 f"text='{_escape_drawtext_text(story_plan.context_icon)}':"
                 "fontsize=42:"
                 f"fontcolor={icon_color}:"
-                "borderw=1:bordercolor=black@0.72:"
-                "shadowx=0:shadowy=2:shadowcolor=black@0.48:"
-                f"x={icon_x}:y={keyword_y}:"
+                "borderw=1:bordercolor=black@0.68:"
+                f"shadowx=0:shadowy={profile.keyword_shadow_y}:shadowcolor=black@0.46:"
+                f"x={icon_x}:y='{keyword_y}':"
                 f"alpha='{keyword_alpha}'"
             )
 
@@ -1682,11 +1727,11 @@ def _build_scene_story_filter_chain(
             f"font='{font_name}':"
             "expansion=none:"
             f"text='{_escape_drawtext_text(_sanitize_story_drawtext_text(story_plan.keyword_text))}':"
-            "fontsize=34:"
+            f"fontsize={profile.keyword_font_size}:"
             "fontcolor=0xFFF9FB:"
-            "borderw=2:bordercolor=0x0F1220@0.88:"
-            "shadowx=0:shadowy=2:shadowcolor=black@0.52:"
-            f"x={keyword_x}:y={keyword_y}:"
+            f"borderw={profile.keyword_border_width}:bordercolor=0x111522@0.82:"
+            f"shadowx=0:shadowy={profile.keyword_shadow_y}:shadowcolor=black@0.50:"
+            f"x={keyword_x}:y='{keyword_y}':"
             f"alpha='{keyword_alpha}'"
         )
 
@@ -1700,6 +1745,7 @@ def _build_scene_story_overlay_plan(
     plan: SceneRenderPlan | None,
 ) -> SceneStoryOverlayPlan:
     overlay_role = scene.overlay_role or compute_overlay_role(scene)
+    pace_role = _resolve_scene_story_pace_role(scene, plan)
     title_text = (
         scene_visual.scene_title
         if scene_visual is not None and scene_visual.scene_title is not None
@@ -1711,8 +1757,11 @@ def _build_scene_story_overlay_plan(
         else tuple(_derive_scene_story_keywords(scene))
     )
     keyword_text = None
-    title_position = "center" if (plan is not None and plan.pace_role == "hook") or scene.role == "hook" else "top"
+    title_position = "center" if pace_role == "hook" else "top"
     keyword_position = (
+        "bottom"
+        if pace_role == "cta"
+        else
         "side"
         if scene.scene_type in {"proof", "interface"} or scene.visual_asset_mode in {"dashboard", "ui", "screenshot"}
         else "bottom"
@@ -1731,6 +1780,11 @@ def _build_scene_story_overlay_plan(
         title_text=title_text,
         allow_when_title_is_centered=not bool(title_text and title_position == "center"),
     )
+    if pace_role == "cta":
+        if keyword_text is None and title_text:
+            keyword_text = title_text
+        if keyword_text:
+            title_text = ""
     context_icon, context_icon_color = _derive_scene_context_icon(
         scene,
         keyword_text=keyword_text,
@@ -1747,8 +1801,8 @@ def _build_scene_story_overlay_plan(
     impact_zoom = (
         bool(title_text)
         and (
-            (plan is not None and plan.sfx_profile in IMPACT_TEXT_SFX_PROFILES)
-            or scene.role == "hook"
+            pace_role == "hook"
+            or (plan is not None and plan.sfx_profile in IMPACT_TEXT_SFX_PROFILES)
             or overlay_role == "hook"
         )
     )
@@ -1765,6 +1819,7 @@ def _build_scene_story_overlay_plan(
         context_icon_color=context_icon_color,
         overlay_applied=tuple(overlay_applied),
         impact_zoom=impact_zoom,
+        pace_role=pace_role,
     )
 
 
@@ -1941,16 +1996,187 @@ def _derive_scene_context_icon(
     return None, None
 
 
-def _build_story_impact_zoom_filter(*, duration_seconds: float) -> str:
-    impact_window = min(0.22, max(0.10, duration_seconds / 4.5))
-    settle_end = min(duration_seconds, max(0.42, impact_window + 0.34))
+def _resolve_scene_story_pace_role(scene: SceneSegment, plan: SceneRenderPlan | None) -> str:
+    if plan is not None and plan.pace_role in {"hook", "proof", "explain", "cta"}:
+        return plan.pace_role
+    if scene.role == "hook" or scene.scene_type == "hook":
+        return "hook"
+    if scene.role == "cta" or scene.scene_type == "cta":
+        return "cta"
+    if scene.scene_type == "proof":
+        return "proof"
+    return "explain"
+
+
+def _resolve_story_overlay_role_profile(story_plan: SceneStoryOverlayPlan) -> StoryOverlayRoleProfile:
+    if story_plan.pace_role == "hook":
+        return StoryOverlayRoleProfile(
+            pace_role="hook",
+            accent_color="0xFFD27A",
+            title_center_font_size=92,
+            title_top_font_size=72,
+            title_center_y_offset=92,
+            title_top_y=152,
+            title_line_spacing=10,
+            title_border_width=3,
+            title_shadow_y=6,
+            title_shadow_alpha=0.72,
+            title_alpha_delay_seconds=0.0,
+            title_alpha_duration_seconds=0.15,
+            title_intro_duration_seconds=0.12,
+            title_settle_duration_seconds=0.10,
+            title_start_offset_px=104,
+            title_overshoot_px=12,
+            keyword_font_size=34,
+            keyword_side_y=350,
+            keyword_bottom_y=1392,
+            keyword_border_width=2,
+            keyword_shadow_y=3,
+            keyword_alpha_delay_seconds=0.05,
+            keyword_alpha_duration_seconds=0.14,
+            keyword_intro_duration_seconds=0.10,
+            keyword_settle_duration_seconds=0.08,
+            keyword_start_offset_px=28,
+            keyword_overshoot_px=5,
+        )
+    if story_plan.pace_role == "proof":
+        return StoryOverlayRoleProfile(
+            pace_role="proof",
+            accent_color="0x8CE99A",
+            title_center_font_size=84,
+            title_top_font_size=62,
+            title_center_y_offset=104,
+            title_top_y=148,
+            title_line_spacing=8,
+            title_border_width=2,
+            title_shadow_y=4,
+            title_shadow_alpha=0.62,
+            title_alpha_delay_seconds=0.04,
+            title_alpha_duration_seconds=0.18,
+            title_intro_duration_seconds=0.16,
+            title_settle_duration_seconds=0.10,
+            title_start_offset_px=48,
+            title_overshoot_px=4,
+            keyword_font_size=32,
+            keyword_side_y=348,
+            keyword_bottom_y=1400,
+            keyword_border_width=2,
+            keyword_shadow_y=3,
+            keyword_alpha_delay_seconds=0.08,
+            keyword_alpha_duration_seconds=0.16,
+            keyword_intro_duration_seconds=0.14,
+            keyword_settle_duration_seconds=0.08,
+            keyword_start_offset_px=18,
+            keyword_overshoot_px=3,
+        )
+    if story_plan.pace_role == "cta":
+        return StoryOverlayRoleProfile(
+            pace_role="cta",
+            accent_color="0xA8D4FF",
+            title_center_font_size=78,
+            title_top_font_size=58,
+            title_center_y_offset=110,
+            title_top_y=164,
+            title_line_spacing=8,
+            title_border_width=2,
+            title_shadow_y=3,
+            title_shadow_alpha=0.54,
+            title_alpha_delay_seconds=0.10,
+            title_alpha_duration_seconds=0.14,
+            title_intro_duration_seconds=0.14,
+            title_settle_duration_seconds=0.08,
+            title_start_offset_px=24,
+            title_overshoot_px=2,
+            keyword_font_size=32,
+            keyword_side_y=354,
+            keyword_bottom_y=1368,
+            keyword_border_width=2,
+            keyword_shadow_y=2,
+            keyword_alpha_delay_seconds=0.12,
+            keyword_alpha_duration_seconds=0.14,
+            keyword_intro_duration_seconds=0.12,
+            keyword_settle_duration_seconds=0.06,
+            keyword_start_offset_px=22,
+            keyword_overshoot_px=2,
+        )
+    return StoryOverlayRoleProfile(
+        pace_role="explain",
+        accent_color="0xA8D4FF",
+        title_center_font_size=82,
+        title_top_font_size=60,
+        title_center_y_offset=106,
+        title_top_y=160,
+        title_line_spacing=8,
+        title_border_width=2,
+        title_shadow_y=4,
+        title_shadow_alpha=0.60,
+        title_alpha_delay_seconds=0.05,
+        title_alpha_duration_seconds=0.18,
+        title_intro_duration_seconds=0.15,
+        title_settle_duration_seconds=0.09,
+        title_start_offset_px=36,
+        title_overshoot_px=3,
+        keyword_font_size=32,
+        keyword_side_y=352,
+        keyword_bottom_y=1398,
+        keyword_border_width=2,
+        keyword_shadow_y=3,
+        keyword_alpha_delay_seconds=0.10,
+        keyword_alpha_duration_seconds=0.16,
+        keyword_intro_duration_seconds=0.13,
+        keyword_settle_duration_seconds=0.08,
+        keyword_start_offset_px=18,
+        keyword_overshoot_px=2,
+    )
+
+
+def _build_story_alpha_expr(*, delay_seconds: float, duration_seconds: float) -> str:
+    safe_delay = max(0.0, delay_seconds)
+    safe_duration = max(0.06, duration_seconds)
+    end_seconds = safe_delay + safe_duration
+    return (
+        f"if(lt(t,{safe_delay:.3f}),0,"
+        f"if(lt(t,{end_seconds:.3f}),(t-{safe_delay:.3f})/{safe_duration:.3f},1))"
+    )
+
+
+def _build_story_pop_y_expr(
+    *,
+    final_y_expr: str,
+    start_offset_px: int,
+    overshoot_px: int,
+    intro_duration_seconds: float,
+    settle_duration_seconds: float,
+) -> str:
+    safe_intro = max(0.08, intro_duration_seconds)
+    safe_settle = max(0.05, settle_duration_seconds)
+    settle_end = safe_intro + safe_settle
+    total_travel = start_offset_px + overshoot_px
+    return (
+        f"if(lt(t,{safe_intro:.3f}),"
+        f"({final_y_expr})+{start_offset_px}-({total_travel})*(t/{safe_intro:.3f}),"
+        f"if(lt(t,{settle_end:.3f}),"
+        f"({final_y_expr})-{overshoot_px}+{overshoot_px}*((t-{safe_intro:.3f})/{safe_settle:.3f}),"
+        f"({final_y_expr})))"
+    )
+
+
+def _build_story_impact_zoom_filter(*, duration_seconds: float, pace_role: str) -> str:
+    peak_zoom, settle_zoom = {
+        "hook": (1.065, 1.018),
+        "proof": (1.040, 1.010),
+        "cta": (1.026, 1.000),
+        "explain": (1.034, 1.008),
+    }.get(pace_role, (1.034, 1.008))
+    impact_window = min(0.20, max(0.09, duration_seconds / 5.2))
+    settle_end = min(duration_seconds, max(0.36, impact_window + (0.24 if pace_role == "hook" else 0.18)))
     settle_duration = max(0.05, settle_end - impact_window)
     zoom_expr = (
         f"if(lt(t,{impact_window:.3f}),"
-        f"1+0.050*(t/{impact_window:.3f}),"
+        f"1+{peak_zoom - 1.0:.3f}*(t/{impact_window:.3f}),"
         f"if(lt(t,{settle_end:.3f}),"
-        f"1.050-0.020*((t-{impact_window:.3f})/{settle_duration:.3f}),"
-        "1.03))"
+        f"{peak_zoom:.3f}-{peak_zoom - settle_zoom:.3f}*((t-{impact_window:.3f})/{settle_duration:.3f}),"
+        f"{settle_zoom:.3f}))"
     )
     return _build_scale_crop_filter(zoom_expr=zoom_expr.replace(",", r"\,"))
 

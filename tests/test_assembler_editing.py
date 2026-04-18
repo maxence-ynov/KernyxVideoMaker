@@ -10,9 +10,11 @@ from unittest.mock import patch
 
 from pipeline.assembler import (
     AudioLayerSpec,
+    TARGET_HEIGHT,
     VoiceWordTiming,
     _build_scene_story_overlay_plan,
     _build_scene_story_filter_chain,
+    _build_overlay_filter,
     assemble_video_step,
     _build_audio_layer_filter,
     SceneRenderPlan,
@@ -20,6 +22,8 @@ from pipeline.assembler import (
     _build_mux_command,
     _build_scene_caption_ass,
     _resolve_caption_settings,
+    _resolve_caption_style_profile,
+    _resolve_story_overlay_role_profile,
     compute_caption_emphasis,
     _resolve_audio_layers,
     resolve_runtime_story_font,
@@ -586,7 +590,9 @@ class AssemblerEditingTests(unittest.TestCase):
         self.assertIn("DejaVu Sans", filter_chain)
         self.assertIn("expansion=none", filter_chain)
         self.assertIn("text='⚠'", filter_chain)
-        self.assertIn("drawbox=x=674:y=332:w=360:h=98", filter_chain)
+        self.assertIn("drawbox=x=692:y=338:w=6:h=74", filter_chain)
+        self.assertNotIn("w=360:h=98:color=0x0F1422@0.34:t=fill", filter_chain)
+        self.assertNotIn("w=iw-112:h=238:color=black@0.14:t=fill", filter_chain)
 
     def test_scene_story_overlay_plan_prefers_short_overlay_text_for_hook_title(self) -> None:
         scene = SceneSegment(
@@ -617,6 +623,147 @@ class AssemblerEditingTests(unittest.TestCase):
         self.assertEqual(story_plan.title_text, "3 erreurs")
         self.assertEqual(story_plan.title_position, "center")
         self.assertEqual(story_plan.keyword_text, None)
+
+    def test_scene_story_overlay_profiles_make_hook_stronger_and_cta_lighter(self) -> None:
+        hook_plan = _build_scene_story_overlay_plan(
+            scene=_build_scene(),
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="hook",
+                camera_pattern="impact_zoom",
+                camera_intensity="high",
+                transition_in="cut",
+                transition_out="flash_cut",
+                text_style="hook_focus",
+                overlay_style="light_glow",
+                sfx_profile="hit_soft",
+                bgm_profile="tension_light",
+            ),
+        )
+        proof_scene = _build_manifest().scenes[1]
+        proof_plan = _build_scene_story_overlay_plan(
+            scene=proof_scene,
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="proof",
+                camera_pattern="hold_static",
+                camera_intensity="low",
+                transition_in="cut",
+                transition_out="cut",
+                text_style="proof_clean",
+                overlay_style="proof_frame",
+                sfx_profile="click_ui_soft",
+                bgm_profile="business_clean",
+            ),
+        )
+        cta_scene = SceneSegment(
+            scene_id="scene_cta",
+            index=2,
+            role="cta",
+            scene_type="cta",
+            source_text="Commente STACK et je t'envoie le workflow",
+            title_text="STACK",
+            highlight_text="workflow",
+            keywords=["stack", "workflow"],
+            word_count=7,
+            proof_mode="generic",
+            visual_asset_mode="ui",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=5.0,
+            end_seconds=7.0,
+            duration_seconds=2.0,
+            overlay_role="keyword",
+            overlay_text="Commente STACK",
+            subtitle_text="Commente STACK et je t'envoie le workflow",
+        )
+        cta_plan = _build_scene_story_overlay_plan(
+            scene=cta_scene,
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="cta",
+                camera_pattern="pull_out_soft",
+                camera_intensity="low",
+                transition_in="dip_to_black_soft",
+                transition_out="cut",
+                text_style="cta_clean",
+                overlay_style="cta_band",
+                sfx_profile="pop_short",
+                bgm_profile="business_clean",
+            ),
+        )
+
+        hook_profile = _resolve_story_overlay_role_profile(hook_plan)
+        proof_profile = _resolve_story_overlay_role_profile(proof_plan)
+        cta_profile = _resolve_story_overlay_role_profile(cta_plan)
+
+        self.assertEqual(hook_plan.pace_role, "hook")
+        self.assertEqual(proof_plan.pace_role, "proof")
+        self.assertEqual(cta_plan.pace_role, "cta")
+        self.assertGreater(hook_profile.title_start_offset_px, proof_profile.title_start_offset_px)
+        self.assertGreater(proof_profile.title_start_offset_px, cta_profile.title_start_offset_px)
+        self.assertLess(hook_profile.title_alpha_duration_seconds, proof_profile.title_alpha_duration_seconds)
+        self.assertGreater(cta_profile.keyword_bottom_y, 0)
+        self.assertLess(cta_profile.keyword_bottom_y, proof_profile.keyword_bottom_y)
+
+    def test_scene_story_overlay_plan_keeps_cta_lightweight(self) -> None:
+        scene = SceneSegment(
+            scene_id="scene_cta_light",
+            index=2,
+            role="cta",
+            scene_type="cta",
+            source_text="Commente STACK et je t'envoie le workflow",
+            title_text="CTA",
+            highlight_text="workflow",
+            keywords=["stack", "workflow"],
+            word_count=7,
+            proof_mode="generic",
+            visual_asset_mode="ui",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=5.0,
+            end_seconds=7.0,
+            duration_seconds=2.0,
+            overlay_role="keyword",
+            overlay_text="Commente STACK",
+            subtitle_text="Commente STACK et je t'envoie le workflow",
+        )
+        plan = SceneRenderPlan(
+            pace_role="cta",
+            camera_pattern="pull_out_soft",
+            camera_intensity="low",
+            transition_in="dip_to_black_soft",
+            transition_out="cut",
+            text_style="cta_clean",
+            overlay_style="cta_band",
+            sfx_profile="pop_short",
+            bgm_profile="business_clean",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=plan)
+        caption_style = _resolve_caption_style_profile(
+            VideoJob(topic="CTA", template="tiktok_ai", account="main"),
+            scene=scene,
+            plan=plan,
+            settings=_resolve_caption_settings(VideoJob(topic="CTA", template="tiktok_ai", account="main")),
+        )
+        story_profile = _resolve_story_overlay_role_profile(story_plan)
+
+        self.assertEqual(story_plan.title_text, "")
+        self.assertEqual(story_plan.keyword_position, "bottom")
+        self.assertEqual(story_plan.overlay_applied, ("keyword_text", "highlight_box", "context_icon"))
+        self.assertLess(story_profile.keyword_bottom_y, TARGET_HEIGHT - caption_style.margin_v - 120)
+
+    def test_build_overlay_filter_replaces_heavy_cta_band_with_soft_separator(self) -> None:
+        filter_text = _build_overlay_filter("cta_band")
+
+        self.assertIsNotNone(filter_text)
+        assert filter_text is not None
+        self.assertNotIn("drawbox=x=0:y=1480:w=iw:h=300:color=black@0.38:t=fill", filter_text)
+        self.assertIn("brightness=0.010", filter_text)
+        self.assertIn("drawbox=x=92:y=1368:w=896:h=2", filter_text)
 
     def test_resolve_runtime_story_font_falls_back_cleanly(self) -> None:
         job = VideoJob(
