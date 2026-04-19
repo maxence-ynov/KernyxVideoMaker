@@ -1,9 +1,0 @@
-Ton hook ne doit pas presenter le sujet. Il doit vendre la deuxieme seconde. Un chiffre simple donne tout de suite du poids a la promesse.
-
-La premiere ligne doit promettre un resultat, pas annoncer un theme.
-
-Resultat mesurable : 3 secondes de retention gagnees sur l'ouverture.
-
-Refais 3 versions et garde seulement celle qu'on comprend en moins d'une seconde.
-
-Si tu veux, je peux te sortir d'autres resultats mesurables sur 3 hooks to stop the scroll in under 2 seconds.
