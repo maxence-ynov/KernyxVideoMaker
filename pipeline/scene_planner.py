@@ -488,6 +488,7 @@ def _build_scene_seeds(job: VideoJob, raw_segments: list[tuple[str, str]]) -> li
             job,
             role=role,
             scene_type=scene_type,
+            proof_mode=proof_mode,
             text=source_text,
         )
         seeds.append(
@@ -747,6 +748,7 @@ def _split_long_scenes(job: VideoJob, scenes: list[SceneSegment]) -> list[SceneS
                 job,
                 role=chunk_role,
                 scene_type=chunk_scene_type,
+                proof_mode=chunk_proof_mode,
                 text=chunk_text,
             )
             output.append(
@@ -1049,6 +1051,7 @@ def _resolve_scene_visual_asset_mode(
     *,
     role: str,
     scene_type: str,
+    proof_mode: str,
     text: str,
 ) -> str:
     explicit_mode = _read_optional_text(job.metadata.get("visual_asset_mode"))
@@ -1058,17 +1061,43 @@ def _resolve_scene_visual_asset_mode(
             return normalized_explicit_mode
 
     lowered_text = text.lower()
+    profile = (_read_optional_text(job.metadata.get("script_profile")) or "").lower()
+    automation_context = profile == "automation" or any(
+        keyword in lowered_text for keyword in TOOL_KEYWORDS + WORKFLOW_KEYWORDS
+    )
+    interface_context = profile in {"hooks", "subtitles"} or any(
+        keyword in lowered_text for keyword in INTERFACE_KEYWORDS
+    )
+    dashboard_context = (
+        "dashboard" in lowered_text
+        or "analytics" in lowered_text
+        or "metrique" in lowered_text
+        or "metrics" in lowered_text
+        or "kpi" in lowered_text
+        or re.search(r"\d", lowered_text) is not None
+    )
+
     if scene_type == "workflow":
         return "workflow"
     if scene_type == "proof":
-        return "dashboard"
+        if proof_mode == "tool":
+            return "workflow" if automation_context else "screenshot"
+        if proof_mode == "result" or dashboard_context:
+            return "dashboard"
+        return "workflow" if automation_context else "screenshot"
     if scene_type == "interface":
         return "screenshot"
     if role == "cta":
-        return "ui"
+        return "workflow" if automation_context else "screenshot"
     if role == "hook":
-        return "dashboard" if "dashboard" in lowered_text else "screenshot"
-    return "ui"
+        if dashboard_context and not automation_context:
+            return "dashboard"
+        return "workflow" if automation_context else "screenshot"
+    if automation_context:
+        return "workflow"
+    if interface_context:
+        return "screenshot"
+    return "screenshot"
 
 
 def _resolve_overlay_text(
@@ -1320,9 +1349,17 @@ def _resolve_visual_intensity_level(scene: SceneSegment, *, overlay_text: str | 
 
 
 def _resolve_primary_focus(scene: SceneSegment, *, overlay_text: str | None) -> str:
+    if scene.scene_type == "proof":
+        return "visual_proof"
+    if (
+        scene.scene_type in {"workflow", "interface"}
+        and scene.role != "hook"
+        and scene.overlay_role not in {"hook", "structure"}
+    ):
+        return "visual_proof"
     if overlay_text:
         return "overlay_text"
-    if scene.scene_type in {"proof", "workflow", "interface"}:
+    if scene.scene_type in {"workflow", "interface"}:
         return "visual_proof"
     if compute_scene_subtitle_text(scene):
         return "subtitles"

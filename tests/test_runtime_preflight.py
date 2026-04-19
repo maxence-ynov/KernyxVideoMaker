@@ -86,11 +86,31 @@ class RuntimePreflightTests(unittest.TestCase):
                     used_fallback=False,
                 ),
             ),
+            patch(
+                "core.preflight.resolve_runtime_story_support_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Noto Sans",
+                    resolved_name="Noto Sans",
+                    used_fallback=False,
+                    resolved_path="/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_symbol_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="DejaVu Sans",
+                    resolved_name="DejaVu Sans",
+                    used_fallback=False,
+                    resolved_path="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                ),
+            ),
         ):
             results = run_runtime_preflight([job], "config/topics.json")
 
         self.assertTrue(any(result.name == "subtitle-font" for result in results))
         self.assertTrue(any(result.name == "overlay-font" for result in results))
+        self.assertTrue(any(result.name == "overlay-support-font" for result in results))
+        self.assertTrue(any(result.name == "overlay-symbol-font" for result in results))
         self.assertTrue(any("DejaVu Sans" in result.detail for result in results))
 
     def test_preflight_reports_font_fallback_when_requested_font_is_missing(self) -> None:
@@ -128,6 +148,25 @@ class RuntimePreflightTests(unittest.TestCase):
                     requested_name="Missing Display Font",
                     resolved_name="Noto Sans",
                     used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\segoeuib.ttf",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_support_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Missing Support Font",
+                    resolved_name="Segoe UI",
+                    used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\segoeui.ttf",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_symbol_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Missing Symbol Font",
+                    resolved_name="Segoe UI Symbol",
+                    used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\seguisym.ttf",
                 ),
             ),
         ):
@@ -139,6 +178,70 @@ class RuntimePreflightTests(unittest.TestCase):
         self.assertIn("resolved='DejaVu Sans'", font_result.detail)
         self.assertIn("requested='Missing Display Font'", overlay_result.detail)
         self.assertIn("resolved='Noto Sans'", overlay_result.detail)
+        self.assertIn("mode=fontfile", overlay_result.detail)
+        self.assertIn("C:/Windows/Fonts/segoeuib.ttf", overlay_result.detail)
+
+    def test_preflight_reports_drawtext_lanes_with_fontfile_paths(self) -> None:
+        job = VideoJob(topic="Hooks", template="tiktok_ai", account="main")
+        with (
+            patch("core.preflight.shutil.which", side_effect=_which),
+            patch("core.preflight.importlib.util.find_spec", return_value=object()),
+            patch(
+                "core.preflight.subprocess.run",
+                return_value=SimpleNamespace(
+                    returncode=0,
+                    stdout="ffmpeg version 6.1.1\n",
+                    stderr="",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_subtitle_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Noto Sans",
+                    resolved_name="Noto Sans",
+                    used_fallback=False,
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Noto Sans Display",
+                    resolved_name="Segoe UI Semibold",
+                    used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\seguisb.ttf",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_support_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="Noto Sans",
+                    resolved_name="Segoe UI",
+                    used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\segoeui.ttf",
+                ),
+            ),
+            patch(
+                "core.preflight.resolve_runtime_story_symbol_font",
+                return_value=RuntimeFontResolution(
+                    requested_name="DejaVu Sans",
+                    resolved_name="Segoe UI Symbol",
+                    used_fallback=True,
+                    resolved_path=r"C:\Windows\Fonts\seguisym.ttf",
+                ),
+            ),
+        ):
+            results = run_runtime_preflight([job], "config/topics.json")
+
+        overlay_result = next(result for result in results if result.name == "overlay-font")
+        support_result = next(result for result in results if result.name == "overlay-support-font")
+        symbol_result = next(result for result in results if result.name == "overlay-symbol-font")
+
+        self.assertIn("mode=fontfile", overlay_result.detail)
+        self.assertIn("C:/Windows/Fonts/seguisb.ttf", overlay_result.detail)
+        self.assertIn("mode=fontfile", support_result.detail)
+        self.assertIn("C:/Windows/Fonts/segoeui.ttf", support_result.detail)
+        self.assertIn("mode=fontfile", symbol_result.detail)
+        self.assertIn("C:/Windows/Fonts/seguisym.ttf", symbol_result.detail)
 
 
 if __name__ == "__main__":

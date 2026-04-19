@@ -144,10 +144,10 @@ TOOL_HINTS = (
     ("gmail", "Gmail"),
 )
 MODE_LABELS = {
-    "dashboard": "LIVE DASHBOARD",
-    "workflow": "WORKFLOW CANVAS",
-    "ui": "OPERATOR UI",
-    "screenshot": "PSEUDO SCREENSHOT",
+    "dashboard": "PROOF SNAPSHOT",
+    "workflow": "FLOW BREAKDOWN",
+    "ui": "SCREEN DETAIL",
+    "screenshot": "LIVE SCREEN",
 }
 PROOF_BADGES = {
     "example": "CASE",
@@ -995,12 +995,18 @@ def select_background_asset(
         if catalog_asset is not None:
             return catalog_asset
 
-    pooled_asset = _select_scene_asset_from_pool(selection_state)
-    if pooled_asset is not None:
-        return _build_resolved_configured_scene_asset(
-            pooled_asset,
-            selection_context=selection_state.selection_context,
-        )
+    prefer_contextual_before_pool = (
+        scene.scene_type == "proof"
+        or scene.primary_focus == "visual_proof"
+        or scene.proof_mode != "generic"
+    )
+    if not prefer_contextual_before_pool:
+        pooled_asset = _select_scene_asset_from_pool(selection_state)
+        if pooled_asset is not None:
+            return _build_resolved_configured_scene_asset(
+                pooled_asset,
+                selection_context=selection_state.selection_context,
+            )
 
     contextual_video_asset = _resolve_catalog_scene_asset(
         scene,
@@ -1021,6 +1027,14 @@ def select_background_asset(
     )
     if contextual_image_asset is not None:
         return contextual_image_asset
+
+    if prefer_contextual_before_pool:
+        pooled_asset = _select_scene_asset_from_pool(selection_state)
+        if pooled_asset is not None:
+            return _build_resolved_configured_scene_asset(
+                pooled_asset,
+                selection_context=selection_state.selection_context,
+            )
 
     return None
 
@@ -1455,7 +1469,12 @@ def _build_scene_visual_job(job: VideoJob, scene: SceneSegment) -> VideoJob:
 
 
 def _resolve_scene_profile(job: VideoJob, scene: SceneSegment) -> str:
-    base_profile = _read_text_metadata(job, "script_profile")
+    base_profile = _read_text_metadata(job, "scene_parent_script_profile") or _read_text_metadata(
+        job,
+        "script_profile",
+    )
+    if base_profile in {"automation", "subtitles", "repurpose"}:
+        return base_profile
     if scene.scene_type == "workflow":
         return "automation"
     if scene.scene_type == "interface":
@@ -1463,7 +1482,7 @@ def _resolve_scene_profile(job: VideoJob, scene: SceneSegment) -> str:
     if scene.scene_type == "hook":
         return "hooks"
     if scene.scene_type == "proof":
-        return "generic"
+        return base_profile or "generic"
     if base_profile:
         return base_profile
     return "generic"
@@ -1769,14 +1788,14 @@ def _build_product_name(job: VideoJob, profile: str, mode: str, tool_label: str)
         return _normalize_draw_text(explicit_name)
 
     if mode == "workflow":
-        return _short_label(f"{tool_label} FLOW", max_chars=16)
+        return _short_label(f"{tool_label} workflow", max_chars=16)
     if mode == "dashboard":
-        return "OPS MONITOR"
+        return "PROOF VIEW"
     if mode == "ui":
-        return "AGENT CONSOLE"
+        return "SCREEN NOTES"
     if profile == "subtitles":
-        return "CAPTION STUDIO"
-    return "AUTOMATION DESK"
+        return "CAPTION CHECK"
+    return "VISUAL CONTEXT"
 
 
 def _build_visual_eyebrow(mode: str, proof_mode: str) -> str:
@@ -1800,15 +1819,15 @@ def _build_title_lines(
             return lines
 
     if profile == "automation" and mode == "workflow":
-        title_source = f"{tool_label} workflow audit"
+        title_source = f"{tool_label} workflow"
     elif profile == "automation" and mode == "dashboard":
-        title_source = "automation control room"
+        title_source = "proof visible on screen"
     elif profile == "automation" and mode == "ui":
-        title_source = "agent review queue"
+        title_source = "screen detail with proof"
     elif profile == "subtitles":
-        title_source = "subtitle flow check"
+        title_source = "subtitle timing check"
     elif profile == "hooks":
-        title_source = "hook signal test"
+        title_source = "scroll stop example"
     elif keywords:
         title_source = " ".join(keywords[:4])
     else:
@@ -1995,18 +2014,18 @@ def _build_highlight_lines(job: VideoJob, proof_mode: str, tool_label: str) -> l
 
 def _build_footer_text(mode: str, proof_mode: str) -> str:
     if proof_mode == "tool":
-        return "SYSTEM STACK LIVE"
+        return "TOOL PROOF ON SCREEN"
     if proof_mode == "result":
-        return "MEASURABLE SIGNAL"
+        return "RESULT VISIBLE NOW"
     if proof_mode == "field_error":
-        return "FIELD CHECK BEFORE SHIP"
+        return "ERROR VISIBLE BEFORE POST"
     if mode == "workflow":
-        return "ORCHESTRATE REVIEW SHIP"
+        return "ONE FLOW ONE MESSAGE"
     if mode == "ui":
-        return "OPERATE TRIAGE DECIDE"
+        return "SUPPORT SCREEN ONLY"
     if mode == "screenshot":
-        return "PSEUDO SCREEN REAL SIGNAL"
-    return "MONITOR PROOF ACTION"
+        return "KEEP PROOF IN FRAME"
+    return "PROOF BEFORE DECOR"
 
 
 def _resolve_job_string_metadata(job: VideoJob, key: str) -> str | None:

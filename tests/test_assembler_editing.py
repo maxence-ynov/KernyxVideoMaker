@@ -10,10 +10,12 @@ from unittest.mock import patch
 
 from pipeline.assembler import (
     AudioLayerSpec,
+    RuntimeFontResolution,
     TARGET_HEIGHT,
     VoiceWordTiming,
     _build_scene_story_overlay_plan,
     _build_scene_story_filter_chain,
+    _build_subtitle_filter,
     _build_overlay_filter,
     assemble_video_step,
     _build_audio_layer_filter,
@@ -23,6 +25,7 @@ from pipeline.assembler import (
     _build_scene_caption_ass,
     _resolve_caption_settings,
     _resolve_caption_style_profile,
+    _resolve_story_layout_grid,
     _resolve_story_overlay_role_profile,
     compute_caption_emphasis,
     _resolve_audio_layers,
@@ -583,7 +586,29 @@ class AssemblerEditingTests(unittest.TestCase):
         )
 
         story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=None)
-        filter_chain = _build_scene_story_filter_chain(job=job, story_plan=story_plan)
+        with patch(
+            "pipeline.assembler.resolve_runtime_story_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans Display",
+                resolved_name="Noto Sans Display",
+                used_fallback=False,
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_support_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans",
+                resolved_name="Noto Sans",
+                used_fallback=False,
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_symbol_font",
+            return_value=RuntimeFontResolution(
+                requested_name="DejaVu Sans",
+                resolved_name="DejaVu Sans",
+                used_fallback=False,
+            ),
+        ):
+            filter_chain = _build_scene_story_filter_chain(job=job, story_plan=story_plan)
 
         self.assertEqual(story_plan.keyword_text, "gagner du temps")
         self.assertEqual(story_plan.context_icon, "⚠")
@@ -593,6 +618,159 @@ class AssemblerEditingTests(unittest.TestCase):
         self.assertIn("drawbox=x=692:y=338:w=6:h=74", filter_chain)
         self.assertNotIn("w=360:h=98:color=0x0F1422@0.34:t=fill", filter_chain)
         self.assertNotIn("w=iw-112:h=238:color=black@0.14:t=fill", filter_chain)
+
+    def test_story_filter_chain_separates_content_font_from_support_font(self) -> None:
+        job = VideoJob(
+            topic="Typography",
+            template="tiktok_ai",
+            account="main",
+            metadata={
+                "story_text_font_name": "Noto Sans Display",
+                "story_support_font_name": "Noto Sans",
+            },
+        )
+        scene = SceneSegment(
+            scene_id="scene_typo",
+            index=0,
+            role="body",
+            scene_type="workflow",
+            source_text="Zapier workflow visible sans bruit visuel",
+            title_text="Workflow clair",
+            highlight_text="preuve visible",
+            keywords=["workflow", "preuve", "visible"],
+            word_count=6,
+            proof_mode="tool",
+            visual_asset_mode="workflow",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=2.4,
+            duration_seconds=2.4,
+            overlay_role="keyword",
+            subtitle_text="Zapier workflow visible sans bruit visuel",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=None)
+        with patch(
+            "pipeline.assembler.resolve_runtime_story_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans Display",
+                resolved_name="Noto Sans Display",
+                used_fallback=False,
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_support_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans",
+                resolved_name="Noto Sans",
+                used_fallback=False,
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_symbol_font",
+            return_value=RuntimeFontResolution(
+                requested_name="DejaVu Sans",
+                resolved_name="DejaVu Sans",
+                used_fallback=False,
+            ),
+        ):
+            filter_chain = _build_scene_story_filter_chain(job=job, story_plan=story_plan)
+
+        self.assertIn("font='Noto Sans Display'", filter_chain)
+        self.assertIn("font='Noto Sans'", filter_chain)
+        self.assertNotEqual(story_plan.title_text, "")
+        self.assertIsNotNone(story_plan.keyword_text)
+
+    def test_story_filter_chain_uses_fontfile_when_runtime_paths_are_resolved(self) -> None:
+        job = VideoJob(
+            topic="Typography",
+            template="tiktok_ai",
+            account="main",
+            metadata={
+                "story_text_font_name": "Noto Sans Display",
+                "story_support_font_name": "Noto Sans",
+            },
+        )
+        scene = SceneSegment(
+            scene_id="scene_typo_windows",
+            index=0,
+            role="body",
+            scene_type="workflow",
+            source_text="Zapier workflow visible sans bruit visuel",
+            title_text="Workflow clair",
+            highlight_text="preuve visible",
+            keywords=["workflow", "preuve", "visible"],
+            word_count=6,
+            proof_mode="tool",
+            visual_asset_mode="workflow",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=0.0,
+            end_seconds=2.4,
+            duration_seconds=2.4,
+            overlay_role="keyword",
+            subtitle_text="Zapier workflow visible sans bruit visuel",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=None)
+        with patch(
+            "pipeline.assembler.resolve_runtime_story_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans Display",
+                resolved_name="Segoe UI Semibold",
+                used_fallback=True,
+                resolved_path=r"C:\Windows\Fonts\seguisb.ttf",
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_support_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans",
+                resolved_name="Segoe UI",
+                used_fallback=True,
+                resolved_path=r"C:\Windows\Fonts\segoeui.ttf",
+            ),
+        ), patch(
+            "pipeline.assembler.resolve_runtime_story_symbol_font",
+            return_value=RuntimeFontResolution(
+                requested_name="DejaVu Sans",
+                resolved_name="Segoe UI Symbol",
+                used_fallback=True,
+                resolved_path=r"C:\Windows\Fonts\seguisym.ttf",
+            ),
+        ):
+            filter_chain = _build_scene_story_filter_chain(job=job, story_plan=story_plan)
+
+        self.assertIn("fontfile='C\\:/Windows/Fonts/seguisb.ttf'", filter_chain)
+        self.assertIn("fontfile='C\\:/Windows/Fonts/segoeui.ttf'", filter_chain)
+        self.assertIn("fontfile='C\\:/Windows/Fonts/seguisym.ttf'", filter_chain)
+        self.assertNotIn("font='Noto Sans Display'", filter_chain)
+
+    def test_subtitle_filter_keeps_subtitles_on_clean_font_lane(self) -> None:
+        job = VideoJob(
+            topic="Typography",
+            template="tiktok_ai",
+            account="main",
+            metadata={
+                "story_text_font_name": "Noto Sans Display",
+                "subtitle_font_name": "Noto Sans",
+            },
+        )
+
+        with patch(
+            "pipeline.assembler._probe_runtime_font_name",
+            side_effect=[
+                RuntimeFontResolution(
+                    requested_name="Noto Sans",
+                    resolved_name="Noto Sans",
+                    used_fallback=False,
+                )
+            ],
+        ):
+            subtitle_filter = _build_subtitle_filter(job, Path("captions.srt"))
+
+        self.assertIn("FontName=Noto Sans", subtitle_filter)
+        self.assertNotIn("FontName=Noto Sans Display", subtitle_filter)
 
     def test_scene_story_overlay_plan_prefers_short_overlay_text_for_hook_title(self) -> None:
         scene = SceneSegment(
@@ -743,18 +921,150 @@ class AssemblerEditingTests(unittest.TestCase):
         )
 
         story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=plan)
-        caption_style = _resolve_caption_style_profile(
-            VideoJob(topic="CTA", template="tiktok_ai", account="main"),
-            scene=scene,
-            plan=plan,
-            settings=_resolve_caption_settings(VideoJob(topic="CTA", template="tiktok_ai", account="main")),
-        )
+        with patch(
+            "pipeline.assembler._resolve_runtime_edit_caption_font",
+            return_value=RuntimeFontResolution(
+                requested_name="Noto Sans",
+                resolved_name="Noto Sans",
+                used_fallback=False,
+            ),
+        ):
+            caption_style = _resolve_caption_style_profile(
+                VideoJob(topic="CTA", template="tiktok_ai", account="main"),
+                scene=scene,
+                plan=plan,
+                settings=_resolve_caption_settings(VideoJob(topic="CTA", template="tiktok_ai", account="main")),
+            )
         story_profile = _resolve_story_overlay_role_profile(story_plan)
 
         self.assertEqual(story_plan.title_text, "")
         self.assertEqual(story_plan.keyword_position, "bottom")
         self.assertEqual(story_plan.overlay_applied, ("keyword_text", "highlight_box", "context_icon"))
         self.assertLess(story_profile.keyword_bottom_y, TARGET_HEIGHT - caption_style.margin_v - 120)
+
+    def test_story_layout_grid_keeps_secondary_bottom_zone_clear_of_subtitles(self) -> None:
+        job = VideoJob(
+            topic="CTA",
+            template="tiktok_ai",
+            account="main",
+            metadata={"edit_caption_safe_bottom_margin": 380},
+        )
+        scene = SceneSegment(
+            scene_id="scene_cta_grid",
+            index=2,
+            role="cta",
+            scene_type="cta",
+            source_text="Commente STACK et je t'envoie le workflow",
+            title_text="CTA",
+            highlight_text="workflow",
+            keywords=["stack", "workflow"],
+            word_count=7,
+            proof_mode="generic",
+            visual_asset_mode="workflow",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=5.0,
+            end_seconds=7.0,
+            duration_seconds=2.0,
+            overlay_role="keyword",
+            overlay_text="Commente STACK",
+            subtitle_text="Commente STACK et je t'envoie le workflow",
+        )
+        plan = SceneRenderPlan(
+            pace_role="cta",
+            camera_pattern="pull_out_soft",
+            camera_intensity="low",
+            transition_in="dip_to_black_soft",
+            transition_out="cut",
+            text_style="cta_clean",
+            overlay_style="cta_band",
+            sfx_profile="pop_short",
+            bgm_profile="business_clean",
+        )
+
+        story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=None, plan=plan)
+        layout_grid = _resolve_story_layout_grid(job, story_plan=story_plan)
+
+        self.assertEqual(story_plan.keyword_position, "bottom")
+        self.assertGreaterEqual(layout_grid.subtitle_clear_top - layout_grid.keyword_bottom_y, 100)
+
+    def test_story_layout_grid_varies_positions_between_hook_proof_and_cta(self) -> None:
+        job = VideoJob(topic="Layout", template="tiktok_ai", account="main")
+        hook_plan = _build_scene_story_overlay_plan(
+            scene=_build_scene(),
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="hook",
+                camera_pattern="impact_zoom",
+                camera_intensity="high",
+                transition_in="cut",
+                transition_out="flash_cut",
+                text_style="hook_focus",
+                overlay_style="light_glow",
+                sfx_profile="hit_soft",
+                bgm_profile="tension_light",
+            ),
+        )
+        proof_plan = _build_scene_story_overlay_plan(
+            scene=_build_manifest().scenes[1],
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="proof",
+                camera_pattern="hold_static",
+                camera_intensity="low",
+                transition_in="cut",
+                transition_out="cut",
+                text_style="proof_clean",
+                overlay_style="proof_frame",
+                sfx_profile="click_ui_soft",
+                bgm_profile="business_clean",
+            ),
+        )
+        cta_scene = SceneSegment(
+            scene_id="scene_cta_positions",
+            index=2,
+            role="cta",
+            scene_type="cta",
+            source_text="Commente STACK et je t'envoie le workflow",
+            title_text="CTA",
+            highlight_text="workflow",
+            keywords=["stack", "workflow"],
+            word_count=7,
+            proof_mode="generic",
+            visual_asset_mode="workflow",
+            motion_effect="static",
+            transition_effect="cut",
+            transition_duration_seconds=0.0,
+            start_seconds=5.0,
+            end_seconds=7.0,
+            duration_seconds=2.0,
+            overlay_role="keyword",
+            overlay_text="Commente STACK",
+            subtitle_text="Commente STACK et je t'envoie le workflow",
+        )
+        cta_plan = _build_scene_story_overlay_plan(
+            scene=cta_scene,
+            scene_visual=None,
+            plan=SceneRenderPlan(
+                pace_role="cta",
+                camera_pattern="pull_out_soft",
+                camera_intensity="low",
+                transition_in="dip_to_black_soft",
+                transition_out="cut",
+                text_style="cta_clean",
+                overlay_style="cta_band",
+                sfx_profile="pop_short",
+                bgm_profile="business_clean",
+            ),
+        )
+
+        hook_grid = _resolve_story_layout_grid(job, story_plan=hook_plan)
+        proof_grid = _resolve_story_layout_grid(job, story_plan=proof_plan)
+        cta_grid = _resolve_story_layout_grid(job, story_plan=cta_plan)
+
+        self.assertNotEqual(hook_grid.title_top_y, cta_grid.title_top_y)
+        self.assertNotEqual(proof_grid.keyword_bottom_y, cta_grid.keyword_bottom_y)
 
     def test_build_overlay_filter_replaces_heavy_cta_band_with_soft_separator(self) -> None:
         filter_text = _build_overlay_filter("cta_band")
@@ -774,15 +1084,27 @@ class AssemblerEditingTests(unittest.TestCase):
         )
 
         with patch(
-            "pipeline.assembler._probe_runtime_font_name",
-            side_effect=[None, "Noto Sans", None, None, None, None],
+            "pipeline.assembler._is_windows",
+            return_value=True,
+        ), patch(
+            "pipeline.assembler._probe_runtime_drawtext_font",
+            side_effect=[
+                None,
+                RuntimeFontResolution(
+                    requested_name="Segoe UI Semibold",
+                    resolved_name="Segoe UI Semibold",
+                    used_fallback=False,
+                    resolved_path=r"C:\Windows\Fonts\seguisb.ttf",
+                ),
+            ],
         ):
             resolution = resolve_runtime_story_font(job)
 
         self.assertEqual(resolution.requested_name, "Missing Display Font")
-        self.assertEqual(resolution.resolved_name, "Noto Sans")
+        self.assertEqual(resolution.resolved_name, "Segoe UI Semibold")
         self.assertTrue(resolution.used_fallback)
-        self.assertEqual(job.metadata["story_font_resolved"], "Noto Sans")
+        self.assertEqual(job.metadata["story_font_resolved"], "Segoe UI Semibold")
+        self.assertEqual(job.metadata["story_font_resolved_path"], "C:/Windows/Fonts/seguisb.ttf")
 
     def test_build_mux_command_with_audio_layers_switches_to_filter_complex(self) -> None:
         job = VideoJob(topic="Montage", template="tiktok_ai", account="main")

@@ -5,12 +5,13 @@ from dataclasses import dataclass
 import hashlib
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import shutil
 import subprocess
 import tempfile
-from typing import Mapping
+from typing import Callable, Mapping
 
 from job_paths import (
     AUDIO_MIX_FILENAME,
@@ -66,8 +67,18 @@ DEFAULT_EDIT_DUCKING_ATTACK_MS = 15
 DEFAULT_EDIT_DUCKING_RELEASE_MS = 180
 DEFAULT_SUBTITLE_FONT_NAME = DEFAULT_CAPTION_FONT_NAME
 DEFAULT_STORY_FONT_NAME = "Noto Sans Display"
+DEFAULT_STORY_SUPPORT_FONT_NAME = DEFAULT_SUBTITLE_FONT_NAME
 DEFAULT_SYMBOL_FONT_NAME = "DejaVu Sans"
 DEFAULT_SUBTITLE_FONT_SIZE = DEFAULT_FALLBACK_SUBTITLE_FONT_SIZE
+WINDOWS_SUBTITLE_FONT_FALLBACKS = ("Segoe UI", "Arial")
+WINDOWS_DISPLAY_FONT_FALLBACKS = (
+    "Segoe UI Semibold",
+    "Segoe UI Bold",
+    "Arial Bold",
+    "Segoe UI",
+    "Arial",
+)
+WINDOWS_SYMBOL_FONT_FALLBACKS = ("Segoe UI Symbol", "Segoe UI", "Arial")
 SUBTITLE_FONT_FALLBACKS = (
     DEFAULT_SUBTITLE_FONT_NAME,
     "DejaVu Sans",
@@ -83,12 +94,44 @@ DISPLAY_FONT_FALLBACKS = (
     "Arial",
     "sans-serif",
 )
+STORY_SUPPORT_FONT_FALLBACKS = SUBTITLE_FONT_FALLBACKS
 SYMBOL_FONT_FALLBACKS = (
     DEFAULT_SYMBOL_FONT_NAME,
     "Noto Sans",
     DEFAULT_SUBTITLE_FONT_NAME,
     "sans-serif",
 )
+STORY_LAYOUT_GRID_VERSION = "tiktok_native_zones_v1"
+STORY_TOP_ZONE_Y = {
+    "hook": 152,
+    "proof": 148,
+    "cta": 166,
+    "explain": 160,
+}
+STORY_SECONDARY_SIDE_Y = {
+    "hook": 356,
+    "proof": 348,
+    "cta": 360,
+    "explain": 352,
+}
+STORY_SECONDARY_BOTTOM_Y = {
+    "hook": 1386,
+    "proof": 1394,
+    "cta": 1328,
+    "explain": 1388,
+}
+STORY_SECONDARY_SIDE_BAR_X = 692
+STORY_SECONDARY_SIDE_BAR_WIDTH = 6
+STORY_SECONDARY_SIDE_BAR_HEIGHT = 74
+STORY_SECONDARY_SIDE_ICON_X = 716
+STORY_SECONDARY_SIDE_TEXT_X = 724
+STORY_SECONDARY_BOTTOM_BAR_X = 96
+STORY_SECONDARY_BOTTOM_BAR_WIDTH = 132
+STORY_SECONDARY_BOTTOM_BAR_HEIGHT = 5
+STORY_SECONDARY_BOTTOM_ICON_X = 118
+STORY_SECONDARY_BOTTOM_TEXT_X = 126
+STORY_BOTTOM_ZONE_MIN_Y = 1140
+STORY_SUBTITLE_CLEARANCE_PX = 116
 DEFAULT_SUBTITLE_MARGIN_V = DEFAULT_CAPTION_SAFE_BOTTOM_MARGIN
 DEFAULT_SUBTITLE_OUTLINE = 2
 DEFAULT_SUBTITLE_SHADOW = 0
@@ -469,6 +512,25 @@ class StoryOverlayRoleProfile:
 
 
 @dataclass(slots=True, frozen=True)
+class StoryLayoutGrid:
+    version: str
+    title_top_y: int
+    keyword_side_y: int
+    keyword_bottom_y: int
+    subtitle_clear_top: int
+    side_bar_x: int
+    side_bar_width: int
+    side_bar_height: int
+    side_icon_x: int
+    side_text_x: int
+    bottom_bar_x: int
+    bottom_bar_width: int
+    bottom_bar_height: int
+    bottom_icon_x: int
+    bottom_text_x: int
+
+
+@dataclass(slots=True, frozen=True)
 class CaptionSettings:
     min_duration_ms: int
     max_duration_ms: int
@@ -549,6 +611,13 @@ class RuntimeFontResolution:
     requested_name: str
     resolved_name: str
     used_fallback: bool
+    resolved_path: str | None = None
+
+
+@dataclass(slots=True, frozen=True)
+class RuntimeFontProbeResult:
+    resolved_name: str
+    resolved_path: str | None = None
 
 
 @dataclass(slots=True, frozen=True)
@@ -706,6 +775,9 @@ async def assemble_video_step(job: VideoJob, job_dir: Path) -> None:
     is_multi_scene = scene_manifest is not None and len(scene_manifest.scenes) > 1
     if is_multi_scene:
         _resolve_runtime_edit_caption_font(job)
+        resolve_runtime_story_font(job)
+        resolve_runtime_story_support_font(job)
+        resolve_runtime_story_symbol_font(job)
     inputs = _resolve_inputs(job, job_dir, require_source_media=not is_multi_scene)
     if inputs.voice_audio is not None:
         audio_probe = await _probe_media(inputs.voice_audio)
@@ -1057,6 +1129,7 @@ async def _assemble_multi_scene_video(
                 output_path=output_clip_path,
             )
         story_plan = _build_scene_story_overlay_plan(scene=scene, scene_visual=scene_visual, plan=render_plan)
+        layout_grid = _resolve_story_layout_grid(job, story_plan=story_plan)
         scene_storyboard.append(
             {
                 "scene_id": scene.scene_id,
@@ -1071,6 +1144,8 @@ async def _assemble_multi_scene_video(
                 "overlay_applied": list(story_plan.overlay_applied),
                 "title_position": story_plan.title_position,
                 "keyword_position": story_plan.keyword_position,
+                "layout_grid_version": layout_grid.version,
+                "subtitle_clear_top": layout_grid.subtitle_clear_top,
             }
         )
         LOGGER.debug(
@@ -1213,6 +1288,7 @@ async def _assemble_multi_scene_video(
         "scene_caption_renderer",
         CAPTION_RENDERER_VERSION if can_burn_per_scene_captions else "global_srt",
     )
+    job.set_metadata("scene_story_layout_grid", STORY_LAYOUT_GRID_VERSION)
     job.set_metadata("scene_caption_debug", caption_debug_entries)
     job.set_metadata("scene_caption_debug_count", len(caption_debug_entries))
     job.set_metadata("scene_visual_storyboard", scene_storyboard)
@@ -1624,9 +1700,11 @@ def _build_scene_story_filter_chain(
         return ""
 
     filters: list[str] = []
-    font_name = _escape_drawtext_value(_resolve_story_text_font_name(job))
-    symbol_font_name = _escape_drawtext_value(_resolve_story_symbol_font_name(job))
+    font_selector = _build_drawtext_font_selector(resolve_runtime_story_font(job))
+    support_font_selector = _build_drawtext_font_selector(resolve_runtime_story_support_font(job))
+    symbol_font_selector = _build_drawtext_font_selector(resolve_runtime_story_symbol_font(job))
     profile = _resolve_story_overlay_role_profile(story_plan)
+    layout_grid = _resolve_story_layout_grid(job, story_plan=story_plan)
     title_alpha = _escape_drawtext_expr(
         _build_story_alpha_expr(
             delay_seconds=profile.title_alpha_delay_seconds,
@@ -1647,7 +1725,7 @@ def _build_scene_story_filter_chain(
         title_base_y = (
             f"(h-text_h)/2-{profile.title_center_y_offset}"
             if story_plan.title_position == "center"
-            else str(profile.title_top_y)
+            else str(layout_grid.title_top_y)
         )
         title_y = _escape_drawtext_expr(
             _build_story_pop_y_expr(
@@ -1665,7 +1743,7 @@ def _build_scene_story_filter_chain(
         )
         filters.append(
             "drawtext="
-            f"font='{font_name}':"
+            f"{font_selector}"
             "expansion=none:"
             f"text='{title_text}':"
             f"fontsize={title_font_size}:"
@@ -1683,19 +1761,27 @@ def _build_scene_story_filter_chain(
         if story_plan.keyword_position == "side":
             if "highlight_box" in story_plan.overlay_applied:
                 filters.append(
-                    f"drawbox=x=692:y={profile.keyword_side_y - 14}:w=6:h=74:color={accent_color}@0.82:t=fill"
+                    f"drawbox=x={layout_grid.side_bar_x}:y={layout_grid.keyword_side_y - 14}:"
+                    f"w={layout_grid.side_bar_width}:h={layout_grid.side_bar_height}:"
+                    f"color={accent_color}@0.82:t=fill"
                 )
-            keyword_y_base = str(profile.keyword_side_y)
-            icon_x = "716"
-            keyword_x = "764" if story_plan.context_icon else "724"
+            keyword_y_base = str(layout_grid.keyword_side_y)
+            icon_x = str(layout_grid.side_icon_x)
+            keyword_x = str(
+                layout_grid.side_text_x + (40 if story_plan.context_icon else 0)
+            )
         else:
             if "highlight_box" in story_plan.overlay_applied:
                 filters.append(
-                    f"drawbox=x=96:y={profile.keyword_bottom_y - 24}:w=132:h=5:color={accent_color}@0.78:t=fill"
+                    f"drawbox=x={layout_grid.bottom_bar_x}:y={layout_grid.keyword_bottom_y - 24}:"
+                    f"w={layout_grid.bottom_bar_width}:h={layout_grid.bottom_bar_height}:"
+                    f"color={accent_color}@0.78:t=fill"
                 )
-            keyword_y_base = str(profile.keyword_bottom_y)
-            icon_x = "118"
-            keyword_x = "166" if story_plan.context_icon else "126"
+            keyword_y_base = str(layout_grid.keyword_bottom_y)
+            icon_x = str(layout_grid.bottom_icon_x)
+            keyword_x = str(
+                layout_grid.bottom_text_x + (40 if story_plan.context_icon else 0)
+            )
 
         keyword_y = _escape_drawtext_expr(
             _build_story_pop_y_expr(
@@ -1711,7 +1797,7 @@ def _build_scene_story_filter_chain(
             icon_color = story_plan.context_icon_color or accent_color
             filters.append(
                 "drawtext="
-                f"font='{symbol_font_name}':"
+                f"{symbol_font_selector}"
                 "expansion=none:"
                 f"text='{_escape_drawtext_text(story_plan.context_icon)}':"
                 "fontsize=42:"
@@ -1724,12 +1810,12 @@ def _build_scene_story_filter_chain(
 
         filters.append(
             "drawtext="
-            f"font='{font_name}':"
+            f"{support_font_selector}"
             "expansion=none:"
             f"text='{_escape_drawtext_text(_sanitize_story_drawtext_text(story_plan.keyword_text))}':"
             f"fontsize={profile.keyword_font_size}:"
-            "fontcolor=0xFFF9FB:"
-            f"borderw={profile.keyword_border_width}:bordercolor=0x111522@0.82:"
+            "fontcolor=0xF4F7F8:"
+            f"borderw={profile.keyword_border_width}:bordercolor=0x111522@0.72:"
             f"shadowx=0:shadowy={profile.keyword_shadow_y}:shadowcolor=black@0.50:"
             f"x={keyword_x}:y='{keyword_y}':"
             f"alpha='{keyword_alpha}'"
@@ -2014,23 +2100,23 @@ def _resolve_story_overlay_role_profile(story_plan: SceneStoryOverlayPlan) -> St
             pace_role="hook",
             accent_color="0xFFD27A",
             title_center_font_size=92,
-            title_top_font_size=72,
+            title_top_font_size=68,
             title_center_y_offset=92,
-            title_top_y=152,
-            title_line_spacing=10,
-            title_border_width=3,
+            title_top_y=STORY_TOP_ZONE_Y["hook"],
+            title_line_spacing=8,
+            title_border_width=2,
             title_shadow_y=6,
-            title_shadow_alpha=0.72,
+            title_shadow_alpha=0.66,
             title_alpha_delay_seconds=0.0,
             title_alpha_duration_seconds=0.15,
             title_intro_duration_seconds=0.12,
             title_settle_duration_seconds=0.10,
             title_start_offset_px=104,
             title_overshoot_px=12,
-            keyword_font_size=34,
-            keyword_side_y=350,
-            keyword_bottom_y=1392,
-            keyword_border_width=2,
+            keyword_font_size=30,
+            keyword_side_y=STORY_SECONDARY_SIDE_Y["hook"],
+            keyword_bottom_y=STORY_SECONDARY_BOTTOM_Y["hook"],
+            keyword_border_width=1,
             keyword_shadow_y=3,
             keyword_alpha_delay_seconds=0.05,
             keyword_alpha_duration_seconds=0.14,
@@ -2044,23 +2130,23 @@ def _resolve_story_overlay_role_profile(story_plan: SceneStoryOverlayPlan) -> St
             pace_role="proof",
             accent_color="0x8CE99A",
             title_center_font_size=84,
-            title_top_font_size=62,
+            title_top_font_size=58,
             title_center_y_offset=104,
-            title_top_y=148,
+            title_top_y=STORY_TOP_ZONE_Y["proof"],
             title_line_spacing=8,
             title_border_width=2,
             title_shadow_y=4,
-            title_shadow_alpha=0.62,
+            title_shadow_alpha=0.58,
             title_alpha_delay_seconds=0.04,
             title_alpha_duration_seconds=0.18,
             title_intro_duration_seconds=0.16,
             title_settle_duration_seconds=0.10,
             title_start_offset_px=48,
             title_overshoot_px=4,
-            keyword_font_size=32,
-            keyword_side_y=348,
-            keyword_bottom_y=1400,
-            keyword_border_width=2,
+            keyword_font_size=28,
+            keyword_side_y=STORY_SECONDARY_SIDE_Y["proof"],
+            keyword_bottom_y=STORY_SECONDARY_BOTTOM_Y["proof"],
+            keyword_border_width=1,
             keyword_shadow_y=3,
             keyword_alpha_delay_seconds=0.08,
             keyword_alpha_duration_seconds=0.16,
@@ -2074,23 +2160,23 @@ def _resolve_story_overlay_role_profile(story_plan: SceneStoryOverlayPlan) -> St
             pace_role="cta",
             accent_color="0xA8D4FF",
             title_center_font_size=78,
-            title_top_font_size=58,
+            title_top_font_size=54,
             title_center_y_offset=110,
-            title_top_y=164,
+            title_top_y=STORY_TOP_ZONE_Y["cta"],
             title_line_spacing=8,
-            title_border_width=2,
+            title_border_width=1,
             title_shadow_y=3,
-            title_shadow_alpha=0.54,
+            title_shadow_alpha=0.50,
             title_alpha_delay_seconds=0.10,
             title_alpha_duration_seconds=0.14,
             title_intro_duration_seconds=0.14,
             title_settle_duration_seconds=0.08,
             title_start_offset_px=24,
             title_overshoot_px=2,
-            keyword_font_size=32,
-            keyword_side_y=354,
-            keyword_bottom_y=1368,
-            keyword_border_width=2,
+            keyword_font_size=30,
+            keyword_side_y=STORY_SECONDARY_SIDE_Y["cta"],
+            keyword_bottom_y=STORY_SECONDARY_BOTTOM_Y["cta"],
+            keyword_border_width=1,
             keyword_shadow_y=2,
             keyword_alpha_delay_seconds=0.12,
             keyword_alpha_duration_seconds=0.14,
@@ -2103,23 +2189,23 @@ def _resolve_story_overlay_role_profile(story_plan: SceneStoryOverlayPlan) -> St
         pace_role="explain",
         accent_color="0xA8D4FF",
         title_center_font_size=82,
-        title_top_font_size=60,
+        title_top_font_size=56,
         title_center_y_offset=106,
-        title_top_y=160,
+        title_top_y=STORY_TOP_ZONE_Y["explain"],
         title_line_spacing=8,
-        title_border_width=2,
+        title_border_width=1,
         title_shadow_y=4,
-        title_shadow_alpha=0.60,
+        title_shadow_alpha=0.56,
         title_alpha_delay_seconds=0.05,
         title_alpha_duration_seconds=0.18,
         title_intro_duration_seconds=0.15,
         title_settle_duration_seconds=0.09,
         title_start_offset_px=36,
         title_overshoot_px=3,
-        keyword_font_size=32,
-        keyword_side_y=352,
-        keyword_bottom_y=1398,
-        keyword_border_width=2,
+        keyword_font_size=28,
+        keyword_side_y=STORY_SECONDARY_SIDE_Y["explain"],
+        keyword_bottom_y=STORY_SECONDARY_BOTTOM_Y["explain"],
+        keyword_border_width=1,
         keyword_shadow_y=3,
         keyword_alpha_delay_seconds=0.10,
         keyword_alpha_duration_seconds=0.16,
@@ -2200,9 +2286,66 @@ def _resolve_story_text_font_name(job: VideoJob) -> str:
     return DEFAULT_STORY_FONT_NAME
 
 
+def _resolve_story_support_font_name(job: VideoJob) -> str:
+    support_resolution = resolve_runtime_story_support_font(job)
+    if support_resolution.resolved_name:
+        return support_resolution.resolved_name
+    for key in (
+        "story_support_font_resolved",
+        "story_support_font_name",
+        "overlay_support_font_name",
+        "edit_caption_font_resolved",
+        "edit_caption_font_name",
+        "subtitle_font_resolved",
+        "subtitle_font_name",
+    ):
+        value = job.metadata.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return DEFAULT_STORY_SUPPORT_FONT_NAME
+
+
 def _resolve_story_symbol_font_name(job: VideoJob) -> str:
     resolution = resolve_runtime_story_symbol_font(job)
     return resolution.resolved_name
+
+
+def _build_drawtext_font_selector(resolution: RuntimeFontResolution) -> str:
+    return _build_drawtext_font_selector_from_values(
+        font_name=resolution.resolved_name,
+        font_path=resolution.resolved_path,
+    )
+
+
+def _resolve_story_layout_grid(
+    job: VideoJob,
+    *,
+    story_plan: SceneStoryOverlayPlan,
+) -> StoryLayoutGrid:
+    caption_settings = _resolve_caption_settings(job)
+    subtitle_clear_top = TARGET_HEIGHT - max(240, caption_settings.safe_bottom_margin + 150)
+    desired_bottom_y = STORY_SECONDARY_BOTTOM_Y[story_plan.pace_role]
+    keyword_bottom_y = max(
+        STORY_BOTTOM_ZONE_MIN_Y,
+        min(desired_bottom_y, subtitle_clear_top - STORY_SUBTITLE_CLEARANCE_PX),
+    )
+    return StoryLayoutGrid(
+        version=STORY_LAYOUT_GRID_VERSION,
+        title_top_y=STORY_TOP_ZONE_Y[story_plan.pace_role],
+        keyword_side_y=STORY_SECONDARY_SIDE_Y[story_plan.pace_role],
+        keyword_bottom_y=keyword_bottom_y,
+        subtitle_clear_top=subtitle_clear_top,
+        side_bar_x=STORY_SECONDARY_SIDE_BAR_X,
+        side_bar_width=STORY_SECONDARY_SIDE_BAR_WIDTH,
+        side_bar_height=STORY_SECONDARY_SIDE_BAR_HEIGHT,
+        side_icon_x=STORY_SECONDARY_SIDE_ICON_X,
+        side_text_x=STORY_SECONDARY_SIDE_TEXT_X,
+        bottom_bar_x=STORY_SECONDARY_BOTTOM_BAR_X,
+        bottom_bar_width=STORY_SECONDARY_BOTTOM_BAR_WIDTH,
+        bottom_bar_height=STORY_SECONDARY_BOTTOM_BAR_HEIGHT,
+        bottom_icon_x=STORY_SECONDARY_BOTTOM_ICON_X,
+        bottom_text_x=STORY_SECONDARY_BOTTOM_TEXT_X,
+    )
 
 
 def _sanitize_story_drawtext_text(value: str) -> str:
@@ -5326,12 +5469,14 @@ def _build_subtitle_filter(job: VideoJob, subtitles_path: Path) -> str:
 
 def resolve_runtime_subtitle_font(job: VideoJob) -> RuntimeFontResolution:
     requested_name = _read_str_metadata(job, "subtitle_font_name", DEFAULT_SUBTITLE_FONT_NAME)
-    return _resolve_runtime_font_name(
+    return _resolve_runtime_font(
         job,
         requested_name=requested_name,
         requested_key="subtitle_font_requested",
         resolved_key="subtitle_font_resolved",
         fallbacks=SUBTITLE_FONT_FALLBACKS,
+        platform_fallbacks=WINDOWS_SUBTITLE_FONT_FALLBACKS,
+        probe_font_candidate=_probe_runtime_font_name,
     )
 
 
@@ -5341,12 +5486,36 @@ def _resolve_runtime_edit_caption_font(job: VideoJob) -> RuntimeFontResolution:
         "edit_caption_font_name",
         _read_str_metadata(job, "subtitle_font_name", DEFAULT_SUBTITLE_FONT_NAME),
     )
-    return _resolve_runtime_font_name(
+    return _resolve_runtime_font(
         job,
         requested_name=requested_name,
         requested_key="edit_caption_font_requested",
         resolved_key="edit_caption_font_resolved",
         fallbacks=SUBTITLE_FONT_FALLBACKS,
+        platform_fallbacks=WINDOWS_SUBTITLE_FONT_FALLBACKS,
+        probe_font_candidate=_probe_runtime_font_name,
+    )
+
+
+def resolve_runtime_story_support_font(job: VideoJob) -> RuntimeFontResolution:
+    requested_name = _read_str_metadata(
+        job,
+        "story_support_font_name",
+        _read_str_metadata(
+            job,
+            "overlay_support_font_name",
+            _read_str_metadata(job, "subtitle_font_name", DEFAULT_STORY_SUPPORT_FONT_NAME),
+        ),
+    )
+    return _resolve_runtime_font(
+        job,
+        requested_name=requested_name,
+        requested_key="story_support_font_requested",
+        resolved_key="story_support_font_resolved",
+        fallbacks=STORY_SUPPORT_FONT_FALLBACKS,
+        platform_fallbacks=WINDOWS_SUBTITLE_FONT_FALLBACKS,
+        probe_font_candidate=_probe_runtime_drawtext_font,
+        prefer_resolved_path=True,
     )
 
 
@@ -5356,12 +5525,15 @@ def resolve_runtime_story_font(job: VideoJob) -> RuntimeFontResolution:
         "story_text_font_name",
         _read_str_metadata(job, "overlay_font_name", DEFAULT_STORY_FONT_NAME),
     )
-    return _resolve_runtime_font_name(
+    return _resolve_runtime_font(
         job,
         requested_name=requested_name,
         requested_key="story_font_requested",
         resolved_key="story_font_resolved",
         fallbacks=DISPLAY_FONT_FALLBACKS,
+        platform_fallbacks=WINDOWS_DISPLAY_FONT_FALLBACKS,
+        probe_font_candidate=_probe_runtime_drawtext_font,
+        prefer_resolved_path=True,
     )
 
 
@@ -5371,64 +5543,88 @@ def resolve_runtime_story_symbol_font(job: VideoJob) -> RuntimeFontResolution:
         "overlay_symbol_font_name",
         DEFAULT_SYMBOL_FONT_NAME,
     )
-    return _resolve_runtime_font_name(
+    return _resolve_runtime_font(
         job,
         requested_name=requested_name,
         requested_key="story_symbol_font_requested",
         resolved_key="story_symbol_font_resolved",
         fallbacks=SYMBOL_FONT_FALLBACKS,
+        platform_fallbacks=WINDOWS_SYMBOL_FONT_FALLBACKS,
+        probe_font_candidate=_probe_runtime_drawtext_font,
+        prefer_resolved_path=True,
     )
 
 
-def _resolve_runtime_font_name(
+def _resolve_runtime_font(
     job: VideoJob,
     *,
     requested_name: str,
     requested_key: str,
     resolved_key: str,
     fallbacks: tuple[str, ...],
+    platform_fallbacks: tuple[str, ...] = (),
+    probe_font_candidate: Callable[[str], RuntimeFontProbeResult | None],
+    prefer_resolved_path: bool = False,
 ) -> RuntimeFontResolution:
+    resolved_path_key = f"{resolved_key}_path"
     cached_requested = job.metadata.get(requested_key)
     cached_resolved = job.metadata.get(resolved_key)
+    cached_path = job.metadata.get(resolved_path_key)
     if (
         isinstance(cached_requested, str)
         and isinstance(cached_resolved, str)
         and cached_requested.strip() == requested_name
         and cached_resolved.strip()
     ):
-        used_fallback = _normalize_font_identity(cached_resolved) != _normalize_font_identity(
-            requested_name
-        )
-        return RuntimeFontResolution(
-            requested_name=requested_name,
-            resolved_name=cached_resolved.strip(),
-            used_fallback=used_fallback,
-        )
+        normalized_cached_path = _resolve_cached_runtime_font_path(cached_path)
+        if prefer_resolved_path and normalized_cached_path is None:
+            pass
+        else:
+            used_fallback = _normalize_font_identity(cached_resolved) != _normalize_font_identity(
+                requested_name
+            )
+            return RuntimeFontResolution(
+                requested_name=requested_name,
+                resolved_name=cached_resolved.strip(),
+                used_fallback=used_fallback,
+                resolved_path=normalized_cached_path,
+            )
 
-    for candidate_name in _iter_runtime_font_candidates(requested_name, fallbacks=fallbacks):
-        resolved_name = _probe_runtime_font_name(candidate_name)
-        if resolved_name is None:
+    candidates = _iter_runtime_font_candidates(
+        requested_name,
+        fallbacks=fallbacks,
+        platform_fallbacks=platform_fallbacks,
+    )
+    for candidate_name in candidates:
+        probe_result = probe_font_candidate(candidate_name)
+        if probe_result is None:
             continue
-        used_fallback = _normalize_font_identity(resolved_name) != _normalize_font_identity(
+        used_fallback = _normalize_font_identity(probe_result.resolved_name) != _normalize_font_identity(
             requested_name
+        )
+        normalized_probe_path = (
+            _normalize_runtime_font_path(probe_result.resolved_path)
+            if probe_result.resolved_path
+            else None
         )
         job.set_metadata(requested_key, requested_name)
-        job.set_metadata(resolved_key, resolved_name)
+        job.set_metadata(resolved_key, probe_result.resolved_name)
+        job.set_metadata(resolved_path_key, normalized_probe_path)
         if used_fallback:
             LOGGER.warning(
                 "requested font '%s' is unavailable, falling back to '%s'",
                 requested_name,
-                resolved_name,
+                probe_result.resolved_name,
             )
         return RuntimeFontResolution(
             requested_name=requested_name,
-            resolved_name=resolved_name,
+            resolved_name=probe_result.resolved_name,
             used_fallback=used_fallback,
+            resolved_path=normalized_probe_path,
         )
 
     raise AssemblerError(
-        "unable to resolve a runtime subtitle font; tried "
-        f"{', '.join(_iter_runtime_font_candidates(requested_name, fallbacks=fallbacks))}"
+        "unable to resolve a runtime font; tried " f"{', '.join(candidates)}"
     )
 
 
@@ -5436,30 +5632,213 @@ def _iter_runtime_font_candidates(
     requested_name: str,
     *,
     fallbacks: tuple[str, ...],
+    platform_fallbacks: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     candidates: list[str] = []
-    for candidate in (requested_name, *fallbacks):
+    active_platform_fallbacks = platform_fallbacks if _is_windows() else ()
+    for candidate in (requested_name, *active_platform_fallbacks, *fallbacks):
         normalized_candidate = candidate.strip()
         if normalized_candidate and normalized_candidate not in candidates:
             candidates.append(normalized_candidate)
     return tuple(candidates)
 
 
-def _probe_runtime_font_name(font_name: str) -> str | None:
-    fc_match_binary = shutil.which("fc-match")
-    resolved_name = font_name
-    if fc_match_binary is not None:
-        probe = subprocess.run(
-            [fc_match_binary, "--format=%{family[0]}", font_name],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if probe.returncode == 0 and probe.stdout.strip():
-            resolved_name = probe.stdout.strip()
-    if not _ffmpeg_can_render_font(resolved_name):
+def _resolve_cached_runtime_font_path(raw_value: object) -> str | None:
+    if not isinstance(raw_value, str) or not raw_value.strip():
         return None
-    return resolved_name
+    candidate_path = Path(raw_value.strip())
+    if not candidate_path.exists():
+        return None
+    return _normalize_runtime_font_path(candidate_path)
+
+
+def _probe_runtime_font_name(font_name: str) -> RuntimeFontProbeResult | None:
+    fontconfig_reference = _resolve_fontconfig_font_reference(font_name)
+    if fontconfig_reference is not None and _ffmpeg_can_render_font(fontconfig_reference.resolved_name):
+        return RuntimeFontProbeResult(
+            resolved_name=fontconfig_reference.resolved_name,
+            resolved_path=fontconfig_reference.resolved_path,
+        )
+
+    windows_reference = _resolve_windows_font_reference(font_name)
+    if windows_reference is not None and _ffmpeg_can_render_font(windows_reference.resolved_name):
+        return RuntimeFontProbeResult(
+            resolved_name=windows_reference.resolved_name,
+            resolved_path=windows_reference.resolved_path,
+        )
+
+    if not _ffmpeg_can_render_font(font_name):
+        return None
+    return RuntimeFontProbeResult(resolved_name=font_name)
+
+
+def _probe_runtime_drawtext_font(font_name: str) -> RuntimeFontProbeResult | None:
+    explicit_path = _resolve_explicit_font_path(font_name)
+    if explicit_path is not None:
+        normalized_path = _normalize_runtime_font_path(explicit_path)
+        if _ffmpeg_can_render_drawtext(font_path=normalized_path):
+            return RuntimeFontProbeResult(
+                resolved_name=explicit_path.stem,
+                resolved_path=normalized_path,
+            )
+
+    if _is_windows():
+        windows_reference = _resolve_windows_font_reference(font_name)
+        if windows_reference is None:
+            return None
+        if not windows_reference.resolved_path:
+            return None
+        if not _ffmpeg_can_render_drawtext(font_path=windows_reference.resolved_path):
+            return None
+        return windows_reference
+
+    fontconfig_reference = _resolve_fontconfig_font_reference(font_name)
+    if (
+        fontconfig_reference is not None
+        and fontconfig_reference.resolved_path is not None
+        and _ffmpeg_can_render_drawtext(font_path=fontconfig_reference.resolved_path)
+    ):
+        return fontconfig_reference
+
+    fallback_name = (
+        fontconfig_reference.resolved_name if fontconfig_reference is not None else font_name
+    )
+    if not _ffmpeg_can_render_drawtext(font_name=fallback_name):
+        return None
+    return RuntimeFontProbeResult(resolved_name=fallback_name)
+
+
+def _is_windows() -> bool:
+    return os.name == "nt"
+
+
+def _resolve_fontconfig_font_reference(font_name: str) -> RuntimeFontProbeResult | None:
+    fc_match_binary = shutil.which("fc-match")
+    if fc_match_binary is None:
+        return None
+
+    probe = subprocess.run(
+        [fc_match_binary, "--format=%{family[0]}|%{file}", font_name],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if probe.returncode != 0 or not probe.stdout.strip():
+        return None
+
+    resolved_name, _, raw_path = probe.stdout.strip().partition("|")
+    normalized_path = _resolve_cached_runtime_font_path(raw_path.strip())
+    return RuntimeFontProbeResult(
+        resolved_name=resolved_name.strip() or font_name,
+        resolved_path=normalized_path,
+    )
+
+
+def _resolve_windows_font_reference(font_name: str) -> RuntimeFontProbeResult | None:
+    direct_path = _resolve_explicit_font_path(font_name)
+    if direct_path is not None:
+        return RuntimeFontProbeResult(
+            resolved_name=direct_path.stem,
+            resolved_path=_normalize_runtime_font_path(direct_path),
+        )
+
+    if not _is_windows():
+        return None
+
+    font_aliases = {
+        "arial": (("Arial", "arial.ttf"),),
+        "arial bold": (("Arial Bold", "arialbd.ttf"), ("Arial", "arial.ttf")),
+        "sans serif": (("Segoe UI", "segoeui.ttf"), ("Arial", "arial.ttf")),
+        "segoe ui": (("Segoe UI", "segoeui.ttf"),),
+        "segoe ui bold": (
+            ("Segoe UI Bold", "segoeuib.ttf"),
+            ("Segoe UI Semibold", "seguisb.ttf"),
+        ),
+        "segoe ui semibold": (
+            ("Segoe UI Semibold", "seguisb.ttf"),
+            ("Segoe UI Bold", "segoeuib.ttf"),
+        ),
+        "segoe ui symbol": (("Segoe UI Symbol", "seguisym.ttf"),),
+    }
+    normalized_name = _normalize_font_identity(font_name)
+    candidates = font_aliases.get(normalized_name)
+    if candidates is None:
+        return None
+
+    windows_font_dir = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+    for resolved_name, filename in candidates:
+        candidate_path = windows_font_dir / filename
+        if not candidate_path.exists():
+            continue
+        return RuntimeFontProbeResult(
+            resolved_name=resolved_name,
+            resolved_path=_normalize_runtime_font_path(candidate_path),
+        )
+    return None
+
+
+def _resolve_explicit_font_path(raw_value: str) -> Path | None:
+    stripped_value = raw_value.strip()
+    if not stripped_value:
+        return None
+    if (
+        "\\" not in stripped_value
+        and "/" not in stripped_value
+        and not stripped_value.lower().endswith((".ttf", ".ttc", ".otf", ".otc"))
+    ):
+        return None
+    candidate_path = Path(stripped_value)
+    if not candidate_path.exists():
+        return None
+    return candidate_path.resolve()
+
+
+def _ffmpeg_can_render_drawtext(
+    *,
+    font_name: str | None = None,
+    font_path: str | None = None,
+) -> bool:
+    ffmpeg_binary = shutil.which("ffmpeg")
+    if ffmpeg_binary is None:
+        raise AssemblerError("required binary 'ffmpeg' was not found in PATH")
+
+    font_selector = _build_drawtext_font_selector_from_values(
+        font_name=font_name,
+        font_path=font_path,
+    )
+    command = [
+        ffmpeg_binary,
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "color=c=black:s=320x240:d=0.8",
+        "-vf",
+        (
+            "drawtext="
+            f"{font_selector}"
+            "text='font smoke test':"
+            "fontsize=28:"
+            "fontcolor=white:"
+            "x=(w-text_w)/2:"
+            "y=(h-text_h)/2"
+        ),
+        "-frames:v",
+        "1",
+        "-f",
+        "null",
+        "-",
+    ]
+    completed = subprocess.run(
+        command,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    return completed.returncode == 0
 
 
 def _ffmpeg_can_render_font(font_name: str) -> bool:
@@ -5509,6 +5888,22 @@ def _escape_filter_value_for_smoke(path: Path) -> str:
 
 def _escape_style_value_for_smoke(value: str) -> str:
     return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def _build_drawtext_font_selector_from_values(
+    *,
+    font_name: str | None,
+    font_path: str | None,
+) -> str:
+    if font_path:
+        return f"fontfile='{_escape_drawtext_value(_normalize_runtime_font_path(font_path))}':"
+    if font_name:
+        return f"font='{_escape_drawtext_value(font_name)}':"
+    raise ValueError("drawtext font selector requires a font name or font path")
+
+
+def _normalize_runtime_font_path(path: str | Path) -> str:
+    return str(Path(path).resolve()).replace("\\", "/")
 
 
 def _normalize_font_identity(value: str) -> str:

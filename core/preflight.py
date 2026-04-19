@@ -12,11 +12,38 @@ from typing import Sequence
 from pipeline.assembler import (
     AssemblerError,
     resolve_runtime_story_font,
+    resolve_runtime_story_support_font,
+    resolve_runtime_story_symbol_font,
     resolve_runtime_subtitle_font,
 )
 from schemas import VideoJob
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_display_path(raw_value: str | None) -> str | None:
+    if not raw_value:
+        return None
+    return raw_value.replace("\\", "/")
+
+
+def _format_font_result_detail(
+    resolution,
+    *,
+    include_drawtext_mode: bool,
+) -> str:
+    detail = (
+        f"requested='{resolution.requested_name}' resolved='{resolution.resolved_name}'"
+        if resolution.used_fallback
+        else f"ok ({resolution.resolved_name})"
+    )
+    if include_drawtext_mode:
+        mode = "fontfile" if resolution.resolved_path else "font"
+        detail = f"{detail}; mode={mode}"
+        normalized_path = _normalize_display_path(resolution.resolved_path)
+        if normalized_path:
+            detail = f"{detail}; path='{normalized_path}'"
+    return detail
 
 
 class RuntimePreflightError(RuntimeError):
@@ -74,6 +101,8 @@ def run_runtime_preflight(
     font_failures: list[str] = []
     seen_font_requests: set[str] = set()
     seen_story_font_requests: set[str] = set()
+    seen_story_support_font_requests: set[str] = set()
+    seen_story_symbol_font_requests: set[str] = set()
     for job in jobs:
         requested_name = str(
             job.metadata.get(
@@ -90,11 +119,7 @@ def run_runtime_preflight(
         except AssemblerError as exc:
             font_failures.append(str(exc))
             continue
-        detail = (
-            f"requested='{resolution.requested_name}' resolved='{resolution.resolved_name}'"
-            if resolution.used_fallback
-            else f"ok ({resolution.resolved_name})"
-        )
+        detail = _format_font_result_detail(resolution, include_drawtext_mode=False)
         results.append(PreflightCheckResult(name="subtitle-font", detail=detail))
 
         requested_story_name = str(
@@ -112,12 +137,53 @@ def run_runtime_preflight(
         except AssemblerError as exc:
             font_failures.append(str(exc))
             continue
-        story_detail = (
-            f"requested='{story_resolution.requested_name}' resolved='{story_resolution.resolved_name}'"
-            if story_resolution.used_fallback
-            else f"ok ({story_resolution.resolved_name})"
-        )
+        story_detail = _format_font_result_detail(story_resolution, include_drawtext_mode=True)
         results.append(PreflightCheckResult(name="overlay-font", detail=story_detail))
+
+        requested_support_name = str(
+            job.metadata.get(
+                "story_support_font_name",
+                job.metadata.get(
+                    "overlay_support_font_name",
+                    job.metadata.get("subtitle_font_name", ""),
+                ),
+            )
+            or ""
+        ).strip()
+        if requested_support_name not in seen_story_support_font_requests:
+            seen_story_support_font_requests.add(requested_support_name)
+            try:
+                support_resolution = resolve_runtime_story_support_font(job)
+            except AssemblerError as exc:
+                font_failures.append(str(exc))
+            else:
+                results.append(
+                    PreflightCheckResult(
+                        name="overlay-support-font",
+                        detail=_format_font_result_detail(
+                            support_resolution,
+                            include_drawtext_mode=True,
+                        ),
+                    )
+                )
+
+        requested_symbol_name = str(job.metadata.get("overlay_symbol_font_name", "") or "").strip()
+        if requested_symbol_name not in seen_story_symbol_font_requests:
+            seen_story_symbol_font_requests.add(requested_symbol_name)
+            try:
+                symbol_resolution = resolve_runtime_story_symbol_font(job)
+            except AssemblerError as exc:
+                font_failures.append(str(exc))
+            else:
+                results.append(
+                    PreflightCheckResult(
+                        name="overlay-symbol-font",
+                        detail=_format_font_result_detail(
+                            symbol_resolution,
+                            include_drawtext_mode=True,
+                        ),
+                    )
+                )
 
     failures.extend(font_failures)
     if failures:

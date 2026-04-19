@@ -34,4 +34,5 @@ tests/test_job_paths.py
 tests/test_multiscene_artifact_integrity.py
 tests/test_runtime_preflight.py
 tests/test_scene_asset_selection.py
+tests/test_scene_presentation_policy.py
 tests/test_voice_gen_captions.py

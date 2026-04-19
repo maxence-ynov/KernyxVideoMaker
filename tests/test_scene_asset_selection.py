@@ -868,6 +868,101 @@ class SceneAssetSelectionTests(unittest.TestCase):
             self.assertEqual(first_scene["selected_by"], "contextual_image")
             self.assertEqual(Path(str(first_scene["asset_origin_path"])).name, matching_image.name)
 
+    def test_proof_scene_prefers_contextual_asset_before_pool_background(self) -> None:
+        manifest = SceneManifest(
+            version="multi_scene_v2",
+            strategy="test",
+            total_duration_seconds=2.0,
+            primary_visual_asset_mode="dashboard",
+            scenes=[
+                SceneSegment(
+                    scene_id="scene_01",
+                    index=0,
+                    role="body",
+                    scene_type="proof",
+                    source_text="Le dashboard montre 27 pourcent de gain",
+                    title_text="Dashboard",
+                    highlight_text="27 pourcent de gain visible",
+                    keywords=["dashboard", "gain", "analytics"],
+                    word_count=6,
+                    proof_mode="result",
+                    visual_asset_mode="dashboard",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=0.0,
+                    end_seconds=1.0,
+                    duration_seconds=1.0,
+                    primary_focus="visual_proof",
+                ),
+                SceneSegment(
+                    scene_id="scene_02",
+                    index=1,
+                    role="body",
+                    scene_type="explain",
+                    source_text="Ensuite tu montres le workflow",
+                    title_text="Workflow",
+                    highlight_text="Tu montres le workflow",
+                    keywords=["workflow"],
+                    word_count=5,
+                    proof_mode="generic",
+                    visual_asset_mode="workflow",
+                    motion_effect="static",
+                    transition_effect="cut",
+                    transition_duration_seconds=0.0,
+                    start_seconds=1.0,
+                    end_seconds=2.0,
+                    duration_seconds=1.0,
+                ),
+            ],
+        )
+
+        root = (Path(__file__).resolve().parents[1] / "tmp" / "test_contextual_before_pool").resolve()
+        if root.exists():
+            for child in sorted(root.rglob("*"), reverse=True):
+                if child.is_file():
+                    child.unlink()
+                elif child.is_dir():
+                    child.rmdir()
+            root.rmdir()
+        root.mkdir(parents=True, exist_ok=True)
+        try:
+            config_dir = root / "config"
+            image_dir = root / "tiktok" / "photo"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            image_dir.mkdir(parents=True, exist_ok=True)
+            (config_dir / "topics.json").write_text("{}", encoding="utf-8")
+            matching_image = image_dir / "dashboard-gain-analytics-result-screen.jpg"
+            matching_image.write_text("image", encoding="utf-8")
+
+            job = VideoJob(
+                topic="Dashboard proof",
+                template="tiktok_ai",
+                account="main",
+                metadata={
+                    "config_path": str(config_dir / "topics.json"),
+                    "scene_asset_pool": [str(FALLBACK_ASSET)],
+                },
+            )
+            save_scene_manifest(job, root, manifest)
+
+            asyncio.run(generate_visual_step(job, root))
+
+            visual_assets = job.metadata.get("visual_scene_assets")
+            self.assertIsInstance(visual_assets, list)
+            assert isinstance(visual_assets, list)
+            first_scene = visual_assets[0]
+            self.assertEqual(first_scene["selected_by"], "contextual_image")
+            self.assertEqual(Path(str(first_scene["asset_origin_path"])).name, matching_image.name)
+        finally:
+            if root.exists():
+                for child in sorted(root.rglob("*"), reverse=True):
+                    if child.is_file():
+                        child.unlink()
+                    elif child.is_dir():
+                        child.rmdir()
+                root.rmdir()
+
 
 if __name__ == "__main__":
     unittest.main()
